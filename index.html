@@ -450,6 +450,77 @@ kbd { background:var(--bg-card); border:1px solid var(--border); padding:2px 5px
 /* Swipe delete hint */
 .todo-item .delete-btn { font-size:0.95rem; padding:5px 8px; }
 .todo-item.deleting { transform:translateX(60px); opacity:0; transition:all 0.3s var(--smooth); }
+
+/* Undo Toast */
+.undo-toast {
+  position:fixed; bottom:28px; left:50%; transform:translateX(-50%) translateY(80px);
+  background:var(--bg-card); border:1px solid var(--border); color:var(--text-primary);
+  padding:12px 20px; border-radius:12px; display:flex; align-items:center; gap:14px;
+  box-shadow:0 8px 32px var(--shadow-lg); backdrop-filter:blur(12px); z-index:300;
+  transition:transform 0.3s var(--spring); font-size:0.82rem;
+}
+.undo-toast.show { transform:translateX(-50%) translateY(0); }
+.undo-toast button {
+  background:var(--accent); border:none; color:#fff; padding:6px 14px;
+  border-radius:7px; cursor:pointer; font-weight:600; font-size:0.78rem;
+  transition:all 0.15s var(--spring);
+}
+.undo-toast button:hover { transform:scale(1.05); }
+.undo-toast .undo-timer { width:40px; height:3px; background:var(--border); border-radius:2px; overflow:hidden; }
+.undo-toast .undo-timer-fill { height:100%; background:var(--accent); transition:width linear; }
+
+/* Search */
+.search-overlay {
+  position:fixed; inset:0; background:var(--modal-bg); backdrop-filter:blur(8px);
+  display:none; z-index:250; align-items:flex-start; justify-content:center; padding-top:12vh;
+}
+.search-overlay.open { display:flex; animation:fadeIn 0.2s var(--smooth); }
+.search-box {
+  width:100%; max-width:520px; background:var(--bg-primary); border:1px solid var(--border);
+  border-radius:14px; box-shadow:0 16px 48px var(--shadow-lg); overflow:hidden;
+  animation:scaleIn 0.2s var(--spring);
+}
+.search-input-row { display:flex; align-items:center; padding:16px 20px; gap:10px; border-bottom:1px solid var(--border); }
+.search-input-row input {
+  flex:1; background:transparent; border:none; color:var(--text-primary);
+  font-size:1rem; outline:none; font-weight:500;
+}
+.search-input-row input::placeholder { color:var(--text-muted); }
+.search-input-row .search-icon { color:var(--text-muted); font-size:1.1rem; }
+.search-results { max-height:50vh; overflow-y:auto; padding:8px; }
+.search-result-item {
+  display:flex; align-items:center; gap:10px; padding:10px 14px; border-radius:8px;
+  cursor:pointer; transition:all 0.15s;
+}
+.search-result-item:hover { background:var(--bg-tertiary); }
+.search-result-item .sr-text { flex:1; font-size:0.85rem; color:var(--text-primary); }
+.search-result-item .sr-text mark { background:var(--accent-dim); color:var(--accent); border-radius:2px; padding:0 2px; }
+.search-result-item .sr-date { font-size:0.7rem; color:var(--text-muted); white-space:nowrap; }
+.search-result-item .sr-done { text-decoration:line-through; color:var(--text-muted); }
+.search-empty { text-align:center; padding:32px; color:var(--text-muted); font-size:0.85rem; }
+
+/* Inbox */
+.inbox-badge { background:var(--purple-dim); color:var(--purple); font-size:0.6rem; padding:2px 6px; border-radius:8px; font-weight:700; margin-left:4px; }
+
+/* Carry-forward banner */
+.carry-forward-banner {
+  display:flex; align-items:center; gap:12px; padding:10px 16px; margin-bottom:12px;
+  background:var(--orange-dim); border:1px solid var(--orange); border-radius:10px;
+  font-size:0.78rem; color:var(--orange); animation:slideUp 0.3s var(--spring);
+}
+.carry-forward-banner button {
+  background:var(--orange); border:none; color:#fff; padding:5px 12px; border-radius:6px;
+  cursor:pointer; font-size:0.72rem; font-weight:600; margin-left:auto; transition:all 0.15s var(--spring);
+}
+.carry-forward-banner button:hover { transform:scale(1.05); }
+
+/* Keyboard shortcut overlay */
+.shortcuts-hint {
+  position:fixed; bottom:28px; right:28px; background:var(--bg-glass); border:1px solid var(--border);
+  padding:6px 12px; border-radius:8px; font-size:0.65rem; color:var(--text-muted);
+  backdrop-filter:blur(8px); z-index:50; transition:opacity 0.3s;
+}
+.shortcuts-hint kbd { margin:0 2px; }
 </style>
 </head>
 <body>
@@ -470,6 +541,7 @@ kbd { background:var(--bg-card); border:1px solid var(--border); padding:2px 5px
     </div>
     <button class="btn" id="viewMonthBtn" onclick="setView('month')">Month</button>
     <button class="btn" id="viewWeekBtn" onclick="setView('week')">Week</button>
+    <button class="btn" id="inboxBtn" onclick="setView('inbox')">Inbox<span class="inbox-badge" id="inboxBadge" style="display:none">0</span></button>
     <button class="btn" onclick="openFocusMode()" title="Today Focus Mode">Focus</button>
     <button class="icon-btn" onclick="toggleTheme()" id="themeBtn" aria-label="Toggle theme">&#9790;</button>
   </div>
@@ -494,6 +566,31 @@ kbd { background:var(--bg-card); border:1px solid var(--border); padding:2px 5px
   <div class="calendar-grid" id="calendarGrid"></div>
 </div>
 <div id="weekView" style="display:none"><div class="week-view" id="weekGrid"></div></div>
+<div id="inboxView" style="display:none"><div id="inboxContent"></div></div>
+
+<!-- Carry-forward banner (shows in month/week view) -->
+<div id="carryForwardBanner"></div>
+
+<!-- Search Overlay -->
+<div class="search-overlay" id="searchOverlay" onclick="if(event.target===this)closeSearch()">
+  <div class="search-box">
+    <div class="search-input-row">
+      <span class="search-icon">&#128269;</span>
+      <input type="text" id="searchInput" placeholder="Search all todos..." oninput="performSearch(this.value)" onkeydown="if(event.key==='Escape')closeSearch()">
+    </div>
+    <div class="search-results" id="searchResults"><div class="search-empty">Type to search across all days</div></div>
+  </div>
+</div>
+
+<!-- Undo Toast -->
+<div class="undo-toast" id="undoToast">
+  <span id="undoMsg">Todo deleted</span>
+  <button onclick="performUndo()">Undo</button>
+  <div class="undo-timer"><div class="undo-timer-fill" id="undoTimerFill"></div></div>
+</div>
+
+<!-- Shortcuts hint -->
+<div class="shortcuts-hint" id="shortcutsHint"><kbd>/</kbd> search <kbd>N</kbd> new <kbd>I</kbd> inbox <kbd>F</kbd> focus <kbd>?</kbd> help</div>
 
 <div class="panel-overlay" id="panelOverlay" onclick="closePanel()"></div>
 <div class="panel" id="panel" style="display:none" role="dialog" aria-modal="true" aria-label="Day todos">
@@ -722,9 +819,223 @@ function changeMonth(delta){if(currentView==='week')currentDate.setDate(currentD
 function goToday(){currentDate=new Date();render();}
 function handleInputKey(e){if(e.key==='Enter')addTodo();}
 
-document.addEventListener('keydown',e=>{if(e.key==='Escape'){closePanel();closeFocusMode();}const isInput=e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'||e.target.isContentEditable;if(selectedDate&&document.getElementById('panel').style.display==='flex'&&!isInput){if(e.key==='ArrowLeft'){e.preventDefault();navDay(-1);}if(e.key==='ArrowRight'){e.preventDefault();navDay(1);}}});
+// --- Undo System ---
+let undoStack=[];
+let undoTimeout=null;
+function pushUndo(msg,undoFn){
+  undoStack=[{msg,fn:undoFn}]; // Keep only last action
+  const toast=document.getElementById('undoToast');
+  document.getElementById('undoMsg').textContent=msg;
+  toast.classList.add('show');
+  const fill=document.getElementById('undoTimerFill');
+  fill.style.transition='none';fill.style.width='100%';
+  requestAnimationFrame(()=>{fill.style.transition='width 5s linear';fill.style.width='0%';});
+  clearTimeout(undoTimeout);
+  undoTimeout=setTimeout(()=>{toast.classList.remove('show');undoStack=[];},5000);
+}
+function performUndo(){
+  if(undoStack.length===0)return;
+  const action=undoStack.pop();action.fn();
+  document.getElementById('undoToast').classList.remove('show');
+  clearTimeout(undoTimeout);
+  saveTodos();render();
+  if(selectedDate){const key=dateKey(selectedDate);renderProgress(key);renderPanelTodoList(key);}
+}
 
-// --- Focus Mode ---
+// Override deleteTodo to support undo
+const _origDeleteTodo=deleteTodo;
+deleteTodo=function(key,realIdx){
+  if(!todos[key])return;
+  const nri=[];todos[key].forEach((t,i)=>{if(!t.recurringId)nri.push(i);});
+  const ai=nri[realIdx];if(ai===undefined)return;
+  const removed=todos[key][ai];
+  const removedIdx=ai;
+  todos[key].splice(ai,1);if(todos[key].length===0)delete todos[key];
+  saveTodos();renderProgress(key);renderPanelTodoList(key);render();
+  pushUndo(`"${removed.text.slice(0,30)}" deleted`,()=>{
+    if(!todos[key])todos[key]=[];
+    todos[key].splice(removedIdx,0,removed);
+  });
+};
+
+// --- Search ---
+function openSearch(){
+  document.getElementById('searchOverlay').classList.add('open');
+  setTimeout(()=>document.getElementById('searchInput').focus(),100);
+}
+function closeSearch(){
+  document.getElementById('searchOverlay').classList.remove('open');
+  document.getElementById('searchInput').value='';
+  document.getElementById('searchResults').innerHTML='<div class="search-empty">Type to search across all days</div>';
+}
+function performSearch(query){
+  const results=document.getElementById('searchResults');
+  if(!query.trim()){results.innerHTML='<div class="search-empty">Type to search across all days</div>';return;}
+  const q=query.toLowerCase();
+  let matches=[];
+  // Search regular todos
+  Object.entries(todos).forEach(([key,items])=>{
+    items.forEach(t=>{
+      if(t.recurringId)return;
+      if(t.text&&t.text.toLowerCase().includes(q)){matches.push({key,text:t.text,done:t.done,notes:t.notes});}
+      else if(t.notes&&t.notes.toLowerCase().includes(q)){matches.push({key,text:t.text,done:t.done,notes:t.notes,matchInNotes:true});}
+    });
+  });
+  // Search recurring
+  recurring.forEach(r=>{if(r.text.toLowerCase().includes(q))matches.push({key:r.startDate,text:r.text+' (recurring)',done:false});});
+  // Search inbox
+  const inbox=JSON.parse(localStorage.getItem('todo-calendar-inbox')||'[]');
+  inbox.forEach(t=>{if(t.text.toLowerCase().includes(q))matches.push({key:'inbox',text:t.text,done:t.done});});
+
+  if(matches.length===0){results.innerHTML='<div class="search-empty">No results found</div>';return;}
+  // Sort by date descending
+  matches.sort((a,b)=>b.key.localeCompare(a.key));
+  results.innerHTML=matches.slice(0,20).map(m=>{
+    const highlighted=m.text.replace(new RegExp(`(${escapeHtml(query)})`,'gi'),'<mark>$1</mark>');
+    const dateTxt=m.key==='inbox'?'Inbox':new Date(m.key+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'});
+    return`<div class="search-result-item" onclick="${m.key==='inbox'?"setView('inbox');closeSearch();":`openDay('${m.key}');closeSearch();`}"><span class="sr-text ${m.done?'sr-done':''}">${highlighted}</span><span class="sr-date">${dateTxt}</span></div>`;
+  }).join('')+(matches.length>20?`<div class="search-empty">+${matches.length-20} more results</div>`:'');
+}
+
+// --- Inbox (undated todos) ---
+function getInbox(){return JSON.parse(localStorage.getItem('todo-calendar-inbox')||'[]');}
+function saveInbox(inbox){localStorage.setItem('todo-calendar-inbox',JSON.stringify(inbox));updateInboxBadge();}
+function updateInboxBadge(){
+  const inbox=getInbox();const badge=document.getElementById('inboxBadge');
+  const pending=inbox.filter(t=>!t.done).length;
+  if(pending>0){badge.textContent=pending;badge.style.display='inline';}else{badge.style.display='none';}
+}
+function renderInboxView(){
+  const inbox=getInbox();const container=document.getElementById('inboxContent');
+  let html=`<div style="max-width:560px;margin:0 auto;padding:20px 0">
+    <h2 style="font-size:1.3rem;font-weight:800;margin-bottom:4px">Inbox</h2>
+    <p style="font-size:0.78rem;color:var(--text-muted);margin-bottom:20px">Undated tasks. Drag them to a day when ready.</p>
+    <div class="add-todo-input-row" style="margin-bottom:16px">
+      <input type="text" id="inboxInput" placeholder="Capture a thought..." onkeydown="if(event.key==='Enter')addInboxTodo()" maxlength="500" style="background:var(--bg-secondary);border:1px solid var(--border);color:var(--text-primary);padding:12px 16px;border-radius:10px;font-size:0.87rem;outline:none;flex:1">
+      <button onclick="addInboxTodo()" style="background:var(--gradient-green);border:none;color:#fff;padding:12px 18px;border-radius:10px;cursor:pointer;font-weight:600;font-size:0.84rem">Add</button>
+    </div>`;
+  if(inbox.length===0){html+=`<div class="empty-state"><div class="empty-state-icon">&#128230;</div>Inbox empty. Capture ideas here without a date.</div>`;}
+  else{
+    html+='<div class="todo-list">';
+    inbox.forEach((t,i)=>{
+      html+=`<div class="todo-item${t.done?' done':''}" draggable="true" ondragstart="startInboxDrag(event,${i})">
+        <input type="checkbox" ${t.done?'checked':''} onchange="toggleInboxTodo(${i})" aria-label="${escapeHtml(t.text)}">
+        <div class="todo-item-content"><span class="todo-text">${escapeHtml(t.text)}</span></div>
+        <button class="delete-btn" onclick="deleteInboxTodo(${i})" aria-label="Delete">&#10005;</button>
+      </div>`;
+    });
+    html+='</div>';
+  }
+  html+='</div>';container.innerHTML=html;
+  setTimeout(()=>{const inp=document.getElementById('inboxInput');if(inp)inp.focus();},100);
+}
+function addInboxTodo(){
+  const input=document.getElementById('inboxInput');if(!input)return;
+  const text=input.value.trim();if(!text)return;
+  const inbox=getInbox();inbox.push({text,done:false,priority:'low',created:new Date().toISOString()});
+  saveInbox(inbox);input.value='';renderInboxView();
+}
+function toggleInboxTodo(idx){const inbox=getInbox();if(inbox[idx])inbox[idx].done=!inbox[idx].done;saveInbox(inbox);renderInboxView();}
+function deleteInboxTodo(idx){
+  const inbox=getInbox();const removed=inbox.splice(idx,1)[0];saveInbox(inbox);renderInboxView();
+  pushUndo(`"${removed.text.slice(0,30)}" deleted`,()=>{const ib=getInbox();ib.splice(idx,0,removed);saveInbox(ib);if(currentView==='inbox')renderInboxView();});
+}
+function startInboxDrag(e,idx){
+  const inbox=getInbox();const todo=inbox[idx];
+  draggedTodo={key:'inbox',realIdx:idx,todo:{...todo}};
+  e.dataTransfer.setData('text/plain','cross-day');e.dataTransfer.effectAllowed='move';
+}
+// handleCalendarDrop - handles both inbox and cross-day drops
+function handleCalendarDrop(e,targetKey){
+  e.preventDefault();e.currentTarget.classList.remove('drop-target');
+  if(!draggedTodo)return;
+  if(draggedTodo.key==='inbox'){
+    const inbox=getInbox();inbox.splice(draggedTodo.realIdx,1);saveInbox(inbox);
+    if(!todos[targetKey])todos[targetKey]=[];todos[targetKey].push(draggedTodo.todo);
+    draggedTodo=null;saveTodos();render();if(currentView==='inbox')renderInboxView();return;
+  }
+  if(draggedTodo.key===targetKey){draggedTodo=null;return;}
+  const srcArr=todos[draggedTodo.key]||[];const nri=[];srcArr.forEach((t,i)=>{if(!t.recurringId)nri.push(i);});
+  const actualIdx=nri[draggedTodo.realIdx];
+  if(actualIdx!==undefined){srcArr.splice(actualIdx,1);if(srcArr.length===0)delete todos[draggedTodo.key];else todos[draggedTodo.key]=srcArr;}
+  if(!todos[targetKey])todos[targetKey]=[];todos[targetKey].push(draggedTodo.todo);
+  draggedTodo=null;saveTodos();render();
+  if(selectedDate){const key=dateKey(selectedDate);renderProgress(key);renderPanelTodoList(key);}
+}
+
+// --- Carry Forward ---
+function checkCarryForward(){
+  const banner=document.getElementById('carryForwardBanner');
+  const today=new Date();today.setHours(0,0,0,0);
+  const yesterday=new Date(today);yesterday.setDate(yesterday.getDate()-1);
+  let overdueTodos=[];
+  // Check last 7 days for incomplete todos
+  for(let i=1;i<=7;i++){
+    const d=new Date(today);d.setDate(d.getDate()-i);
+    const key=dateKey(d);const dt=(todos[key]||[]).filter(t=>!t.recurringId&&!t.done);
+    overdueTodos.push(...dt.map(t=>({...t,fromKey:key})));
+  }
+  if(overdueTodos.length===0){banner.innerHTML='';return;}
+  banner.innerHTML=`<div class="carry-forward-banner">
+    <span>&#9888; You have <strong>${overdueTodos.length}</strong> unfinished task${overdueTodos.length>1?'s':''} from the past week</span>
+    <button onclick="carryForwardAll()">Move to Today</button>
+  </div>`;
+}
+function carryForwardAll(){
+  const today=new Date();today.setHours(0,0,0,0);
+  const todayKey=dateKey(today);
+  for(let i=1;i<=7;i++){
+    const d=new Date(today);d.setDate(d.getDate()-i);
+    const key=dateKey(d);if(!todos[key])continue;
+    const toMove=todos[key].filter(t=>!t.recurringId&&!t.done);
+    const toKeep=todos[key].filter(t=>t.recurringId||t.done);
+    if(toMove.length>0){
+      if(!todos[todayKey])todos[todayKey]=[];
+      todos[todayKey].push(...toMove);
+      if(toKeep.length===0)delete todos[key];else todos[key]=toKeep;
+    }
+  }
+  saveTodos();render();document.getElementById('carryForwardBanner').innerHTML='';
+}
+
+// --- Keyboard Shortcuts ---
+document.addEventListener('keydown',e=>{
+  // Don't trigger if typing in input
+  const isInput=e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'||e.target.isContentEditable;
+  if(e.key==='Escape'){closePanel();closeFocusMode();closeSearch();return;}
+
+  if(!isInput){
+    if(e.key==='/'){e.preventDefault();openSearch();return;}
+    if(e.key==='n'||e.key==='N'){e.preventDefault();const todayKey=dateKey(new Date());openDay(todayKey);return;}
+    if(e.key==='i'||e.key==='I'){e.preventDefault();setView('inbox');return;}
+    if(e.key==='f'||e.key==='F'){e.preventDefault();openFocusMode();return;}
+    if(e.key==='?'){e.preventDefault();const h=document.getElementById('shortcutsHint');h.style.opacity=h.style.opacity==='0'?'1':'0';return;}
+  }
+
+  if(selectedDate&&document.getElementById('panel').style.display==='flex'&&!isInput){
+    if(e.key==='ArrowLeft'){e.preventDefault();navDay(-1);}
+    if(e.key==='ArrowRight'){e.preventDefault();navDay(1);}
+  }
+});
+
+// --- View switching (updated to include inbox) ---
+const _origSetView=setView;
+setView=function(v){
+  currentView=v;
+  document.getElementById('monthView').style.display=v==='month'?'block':'none';
+  document.getElementById('weekView').style.display=v==='week'?'block':'none';
+  document.getElementById('inboxView').style.display=v==='inbox'?'block':'none';
+  document.getElementById('viewMonthBtn').classList.toggle('btn-active',v==='month');
+  document.getElementById('viewWeekBtn').classList.toggle('btn-active',v==='week');
+  document.getElementById('inboxBtn').classList.toggle('btn-active',v==='inbox');
+  if(v==='inbox')renderInboxView();
+  else render();
+};
+
+// --- Init ---
+updateInboxBadge();
+setView('month');
+setTimeout(checkCarryForward,500);
 function openFocusMode(){
   const overlay=document.getElementById('focusOverlay');
   overlay.classList.add('open');
@@ -811,26 +1122,7 @@ function handleCalendarDragEnter(e){
 function handleCalendarDragLeave(e){
   const cell=e.currentTarget;cell.classList.remove('drop-target');
 }
-function handleCalendarDrop(e,targetKey){
-  e.preventDefault();e.currentTarget.classList.remove('drop-target');
-  if(!draggedTodo||draggedTodo.key===targetKey)return;
-  // Remove from source
-  const srcArr=todos[draggedTodo.key]||[];
-  const nri=[];srcArr.forEach((t,i)=>{if(!t.recurringId)nri.push(i);});
-  const actualIdx=nri[draggedTodo.realIdx];
-  if(actualIdx!==undefined){
-    srcArr.splice(actualIdx,1);
-    if(srcArr.length===0)delete todos[draggedTodo.key];else todos[draggedTodo.key]=srcArr;
-  }
-  // Add to target
-  if(!todos[targetKey])todos[targetKey]=[];
-  todos[targetKey].push(draggedTodo.todo);
-  draggedTodo=null;
-  saveTodos();render();
-  if(selectedDate){const key=dateKey(selectedDate);renderProgress(key);renderPanelTodoList(key);}
-}
 
-setView('month');
 </script>
 </body>
 </html>
