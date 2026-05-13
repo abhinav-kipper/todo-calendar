@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Todo Calendar</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><ellipse cx='50' cy='88' rx='22' ry='6' fill='%23b8d4f0' opacity='0.3'/><ellipse cx='50' cy='62' rx='28' ry='34' fill='%23d8eafc'/><ellipse cx='50' cy='60' rx='22' ry='28' fill='%23f0f7ff'/><circle cx='50' cy='28' r='22' fill='%23d8eafc'/><circle cx='42' cy='24' r='4' fill='%231a2030'/><circle cx='58' cy='24' r='4' fill='%231a2030'/><circle cx='43' cy='23' r='1.5' fill='white'/><circle cx='59' cy='23' r='1.5' fill='white'/><ellipse cx='50' cy='32' rx='5' ry='3.5' fill='%23ffb347'/><polygon points='50,30 45,34 55,34' fill='%23ff9500'/><ellipse cx='30' cy='58' rx='10' ry='5' fill='%23a8d0f0' transform='rotate(-15 30 58)'/><ellipse cx='70' cy='58' rx='10' ry='5' fill='%23a8d0f0' transform='rotate(15 70 58)'/><ellipse cx='38' cy='82' rx='7' ry='4' fill='%23ffb347' transform='rotate(-5 38 82)'/><ellipse cx='62' cy='82' rx='7' ry='4' fill='%23ffb347' transform='rotate(5 62 82)'/><rect x='44' y='45' rx='3' width='12' height='14' fill='%236ea8fe' opacity='0.6'/><rect x='44' y='45' rx='2' width='12' height='4' fill='%236ea8fe'/><rect x='46' y='51' width='3' height='3' rx='1' fill='%235cdb7f'/><rect x='51' y='51' width='3' height='3' rx='1' fill='%23b88cff' opacity='0.6'/></svg>">
 <meta name="description" content="A beautiful calendar-based todo app with cloud sync">
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
@@ -385,12 +386,70 @@ kbd { background:var(--bg-card); border:1px solid var(--border); padding:2px 5px
   body{padding:12px} .day-cell{min-height:58px;padding:5px} .todo-preview-item{display:none}
   .toolbar{gap:8px} .panel{width:100%;max-width:100%}
   .week-view{grid-template-columns:repeat(2,1fr)} .week-day-col{min-height:150px;max-height:50vh}
+  .todo-item .delete-btn { opacity:1; }
 }
 @media(max-width:600px){
   .header{flex-direction:column;align-items:stretch} .header-right{justify-content:center}
   .day-cell{min-height:44px;padding:3px;border-radius:6px} .day-number{font-size:0.65rem}
   .week-view{grid-template-columns:1fr} .week-day-col{min-height:100px;max-height:40vh}
 }
+
+/* Notes on todos */
+.todo-notes {
+  margin-top:8px; padding:10px 12px; background:var(--bg-primary); border:1px solid var(--border);
+  border-radius:8px; animation:scaleIn 0.2s var(--spring);
+}
+.todo-notes textarea {
+  width:100%; min-height:60px; background:transparent; border:none; color:var(--text-primary);
+  font-size:0.8rem; font-family:inherit; resize:vertical; outline:none; line-height:1.5;
+}
+.todo-notes textarea::placeholder { color:var(--text-muted); }
+.todo-notes-hint { font-size:0.6rem; color:var(--text-muted); margin-top:4px; }
+.todo-item .note-indicator { font-size:0.6rem; color:var(--purple); margin-left:4px; }
+
+/* Focus Mode */
+.focus-overlay {
+  position:fixed; inset:0; background:var(--bg-primary); z-index:200;
+  display:none; flex-direction:column; align-items:center; padding:40px 24px;
+  animation:fadeIn 0.3s var(--smooth); overflow-y:auto;
+}
+.focus-overlay.open { display:flex; }
+.focus-header {
+  width:100%; max-width:560px; display:flex; justify-content:space-between; align-items:center; margin-bottom:32px;
+}
+.focus-header h2 { font-size:1.6rem; font-weight:800; background:var(--gradient-accent); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
+.focus-close { background:var(--bg-secondary); border:1px solid var(--border); color:var(--text-secondary); padding:8px 16px; border-radius:8px; cursor:pointer; font-size:0.8rem; transition:all 0.2s var(--spring); }
+.focus-close:hover { background:var(--bg-tertiary); color:var(--text-primary); }
+.focus-content { width:100%; max-width:560px; }
+.focus-progress { margin-bottom:28px; text-align:center; }
+.focus-progress .big-pct { font-size:2.5rem; font-weight:800; }
+.focus-progress .sub { font-size:0.85rem; color:var(--text-muted); margin-top:4px; }
+.focus-todo-list { display:flex; flex-direction:column; gap:8px; }
+.focus-todo-item {
+  display:flex; align-items:center; gap:14px; padding:16px 20px;
+  background:var(--bg-secondary); border:1px solid var(--border); border-radius:12px;
+  transition:all 0.2s var(--spring); animation:todoEnter 0.3s var(--spring) backwards;
+}
+.focus-todo-item:hover { border-color:var(--border-hover); transform:translateX(4px); box-shadow:0 4px 16px var(--shadow); }
+.focus-todo-item input[type="checkbox"] {
+  appearance:none; width:26px; height:26px; border:2.5px solid var(--border); border-radius:8px;
+  cursor:pointer; flex-shrink:0; transition:all 0.25s var(--spring); position:relative;
+}
+.focus-todo-item input[type="checkbox"]:hover { border-color:var(--green); transform:scale(1.1); box-shadow:0 0 10px var(--green-glow); }
+.focus-todo-item input[type="checkbox"]:checked { background:var(--gradient-green); border-color:transparent; animation:bounceCheck 0.4s var(--spring); box-shadow:0 0 12px var(--green-glow); }
+.focus-todo-item input[type="checkbox"]:checked::after { content:''; position:absolute; left:7px; top:4px; width:7px; height:11px; border:solid #fff; border-width:0 3px 3px 0; transform:rotate(45deg); }
+.focus-todo-item .focus-text { font-size:1.05rem; font-weight:500; color:var(--text-primary); flex:1; }
+.focus-todo-item.done .focus-text { text-decoration:line-through; color:var(--text-muted); }
+.focus-todo-item .focus-prio { font-size:0.6rem; padding:3px 8px; border-radius:8px; font-weight:700; text-transform:uppercase; }
+.focus-empty { text-align:center; color:var(--text-muted); padding:60px 0; font-size:1rem; }
+
+/* Cross-day drag indicator */
+.day-cell.drop-target, .week-day-col.drop-target { border-color:var(--accent)!important; background:var(--accent-dim)!important; box-shadow:0 0 0 2px var(--accent-glow)!important; transform:scale(1.03); }
+.day-cell.drop-target .day-number { color:var(--accent)!important; }
+
+/* Swipe delete hint */
+.todo-item .delete-btn { font-size:0.95rem; padding:5px 8px; }
+.todo-item.deleting { transform:translateX(60px); opacity:0; transition:all 0.3s var(--smooth); }
 </style>
 </head>
 <body>
@@ -411,6 +470,7 @@ kbd { background:var(--bg-card); border:1px solid var(--border); padding:2px 5px
     </div>
     <button class="btn" id="viewMonthBtn" onclick="setView('month')">Month</button>
     <button class="btn" id="viewWeekBtn" onclick="setView('week')">Week</button>
+    <button class="btn" onclick="openFocusMode()" title="Today Focus Mode">Focus</button>
     <button class="icon-btn" onclick="toggleTheme()" id="themeBtn" aria-label="Toggle theme">&#9790;</button>
   </div>
 </div>
@@ -469,6 +529,15 @@ kbd { background:var(--bg-card); border:1px solid var(--border); padding:2px 5px
     <div class="keyboard-hint"><kbd>Enter</kbd> add &middot; <kbd>Esc</kbd> close</div>
     <div class="panel-nav"><button onclick="navDay(-1)" aria-label="Previous day">&#8592; Prev</button><button onclick="navDay(1)" aria-label="Next day">Next &#8594;</button></div>
   </div>
+</div>
+
+<!-- Focus Mode -->
+<div class="focus-overlay" id="focusOverlay">
+  <div class="focus-header">
+    <h2 id="focusTitle">Today's Focus</h2>
+    <button class="focus-close" onclick="closeFocusMode()">Back to Calendar</button>
+  </div>
+  <div class="focus-content" id="focusContent"></div>
 </div>
 
 <script>
@@ -577,20 +646,27 @@ function buildDayCell(date,dayNum,otherMonth,today){const key=dateKey(date),dt=g
   let badge='';if(has){const dc=dt.filter(t=>t.done).length;badge=`<span class="day-badge">${dc}/${dt.length}</span>`;}
   let preview='';dt.slice(0,3).forEach(t=>{const d=t.done?' done':'',p=t.priority!=='low'?` priority-${t.priority}`:'';const txt=t.text.length>14?t.text.slice(0,14)+'\u2026':t.text;const rec=t.isRecurring?'<span class="recurring-badge">&#8635;</span>':'';preview+=`<div class="todo-preview-item${d}${p}"><span class="todo-preview-dot"></span>${escapeHtml(txt)}${rec}</div>`;});
   if(dt.length>3)preview+=`<div class="todo-overflow">+${dt.length-3} more</div>`;
-  return`<div class="${cls}" onclick="handleDayClick('${key}')" ondblclick="handleDayDblClick(event,'${key}')"><div class="day-number">${dayNum}${badge}</div><div class="day-todos-preview">${preview}</div></div>`;}
+  return`<div class="${cls}" onclick="handleDayClick('${key}')" ondblclick="handleDayDblClick(event,'${key}')" ondragover="handleCalendarDragOver(event)" ondragenter="handleCalendarDragEnter(event)" ondragleave="handleCalendarDragLeave(event)" ondrop="handleCalendarDrop(event,'${key}')"><div class="day-number">${dayNum}${badge}</div><div class="day-todos-preview">${preview}</div></div>`;}
 
 function quickAdd(e,key){e.stopPropagation();const cell=e.currentTarget;if(cell.querySelector('.quick-add-input'))return;const input=document.createElement('input');input.className='quick-add-input';input.placeholder='Quick add...';input.maxLength=500;input.onkeydown=ev=>{if(ev.key==='Enter'&&input.value.trim()){if(!todos[key])todos[key]=[];todos[key].push({text:input.value.trim(),done:false,priority:'low',created:new Date().toISOString()});saveTodos();render();}if(ev.key==='Escape'||ev.key==='Enter'){ev.stopPropagation();input.remove();}};input.onblur=()=>setTimeout(()=>input.remove(),100);cell.appendChild(input);input.focus();}
 
 // --- Week ---
 function renderWeekView(){const grid=document.getElementById('weekGrid');const today=new Date();today.setHours(0,0,0,0);const sow=new Date(currentDate);sow.setDate(sow.getDate()-sow.getDay());document.getElementById('monthLabel').textContent=sow.toLocaleDateString('en-US',{month:'short',day:'numeric'})+' \u2013 '+new Date(sow.getTime()+6*86400000).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
   let html='';for(let i=0;i<7;i++){const d=new Date(sow);d.setDate(d.getDate()+i);const key=dateKey(d);const dt=getTodosForDay(key);const isToday=d.toDateString()===today.toDateString();const overdue=isOverdue(key);const hc=isToday?' today':overdue?' overdue':'';
-    html+=`<div class="week-day-col"><div class="week-day-header${hc}" onclick="openDay('${key}')"><div class="day-name">${d.toLocaleDateString('en-US',{weekday:'short'})}</div><div class="day-num">${d.getDate()}</div></div><div class="week-todo-list">`;
-    dt.slice(0,15).forEach((t,idx)=>{const dc=t.done?' done':'';const pc=t.priority==='high'?'var(--red)':t.priority==='medium'?'var(--orange)':'var(--accent)';html+=`<div class="week-todo-item${dc}"><input type="checkbox" ${t.done?'checked':''} onchange="toggleWeekTodo('${key}',${idx},${!!t.isRecurring},'${t.id||''}')" aria-label="${escapeHtml(t.text)}"><span class="week-todo-text">${escapeHtml(t.text)}</span><span class="priority-dot" style="background:${pc}"></span></div>`;});
+    html+=`<div class="week-day-col" ondragover="handleCalendarDragOver(event)" ondragenter="this.classList.add('drop-target')" ondragleave="this.classList.remove('drop-target')" ondrop="this.classList.remove('drop-target');handleCalendarDrop(event,'${key}')"><div class="week-day-header${hc}" onclick="openDay('${key}')"><div class="day-name">${d.toLocaleDateString('en-US',{weekday:'short'})}</div><div class="day-num">${d.getDate()}</div></div><div class="week-todo-list">`;
+    dt.slice(0,15).forEach((t,idx)=>{const dc=t.done?' done':'';const pc=t.priority==='high'?'var(--red)':t.priority==='medium'?'var(--orange)':'var(--accent)';const isRec=!!t.isRecurring;const dragAttr=!isRec?` draggable="true" ondragstart="startCrossDayDrag(event,'${key}',${idx})"`:'';html+=`<div class="week-todo-item${dc}"${dragAttr}><input type="checkbox" ${t.done?'checked':''} onchange="toggleWeekTodo('${key}',${idx},${isRec},'${t.id||''}')" aria-label="${escapeHtml(t.text)}"><span class="week-todo-text">${escapeHtml(t.text)}</span><span class="priority-dot" style="background:${pc}"></span><button class="delete-btn" onclick="deleteWeekTodo('${key}',${idx},${isRec},'${t.id||''}')" style="opacity:0.5;font-size:0.7rem;padding:2px 5px;border:none;background:none;color:var(--text-muted);cursor:pointer" aria-label="Delete">&#10005;</button></div>`;});
     if(dt.length>15)html+=`<div style="font-size:0.6rem;color:var(--text-muted);text-align:center;padding:3px">+${dt.length-15} more</div>`;
     html+=`</div><input class="week-add-input" placeholder="+ Add" onkeydown="weekQuickAdd(event,'${key}')" aria-label="Add todo"></div>`;}
   grid.innerHTML=html;}
 function weekQuickAdd(e,key){if(e.key!=='Enter'||!e.target.value.trim())return;if(!todos[key])todos[key]=[];todos[key].push({text:e.target.value.trim(),done:false,priority:'low',created:new Date().toISOString()});e.target.value='';saveTodos();render();}
 function toggleWeekTodo(key,index,isRec,rid){if(isRec){if(!todos[key])todos[key]=[];const ex=todos[key].find(t=>t.recurringId===rid);if(ex)ex.done=!ex.done;else todos[key].push({recurringId:rid,done:true,text:'',priority:'low'});}else{const base=(todos[key]||[]).filter(t=>!t.recurringId);if(base[index])base[index].done=!base[index].done;}saveTodos();render();checkAllDone(key);}
+function deleteWeekTodo(key,idx,isRec,rid){
+  if(isRec){deleteRecurring(rid);return;}
+  const nri=[];(todos[key]||[]).forEach((t,i)=>{if(!t.recurringId)nri.push(i);});
+  const ai=nri[idx];if(ai===undefined)return;
+  todos[key].splice(ai,1);if(todos[key].length===0)delete todos[key];
+  saveTodos();render();
+}
 
 // --- Panel ---
 function openDay(key){selectedDate=new Date(key+'T12:00:00');document.getElementById('panelOverlay').classList.add('open');document.getElementById('panel').style.display='flex';const d=selectedDate;document.getElementById('panelTitle').textContent=d.toLocaleDateString('en-US',{weekday:'long'});const sub=d.toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});const rel=getRelativeDay(key);document.getElementById('panelSub').textContent=rel?`${sub} \u2022 ${rel}`:sub;renderProgress(key);renderPanelTodoList(key);render();setTimeout(()=>document.getElementById('todoInput').focus(),150);}
@@ -611,8 +687,10 @@ function renderPanelTodoList(key){const dt=getTodosForDay(key),container=documen
   container.innerHTML=html;initDragDrop(key);}
 
 function renderPanelTodoItem(key,todo){const prioTag=todo.priority!=='low'?`<span class="priority-tag ${todo.priority}">${todo.priority}</span>`:'';const timeStr=todo.created?new Date(todo.created).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}):'';const recBadge=todo.isRec?`<span class="recurring-badge">&#8635; ${todo.repeat||''}</span>`:'';
-  const delBtn=todo.isRec?`<button class="delete-btn" onclick="deleteRecurring('${todo.id}')" aria-label="Delete">&#10005;</button>`:`<button class="delete-btn" onclick="deleteTodo('${key}',${todo.realIdx})" aria-label="Delete">&#10005;</button>`;
-  return`<div class="todo-item${todo.done?' done':''}" draggable="${!todo.isRec}" data-real-idx="${todo.realIdx}" data-key="${key}"><input type="checkbox" ${todo.done?'checked':''} onchange="toggleTodo('${key}',${todo.realIdx},${todo.isRec},'${todo.id||''}')" aria-label="${escapeHtml(todo.text)}"><div class="todo-item-content"><span class="todo-text">${escapeHtml(todo.text)}</span><div class="todo-meta">${prioTag}${recBadge}<span>${timeStr}</span></div></div>${delBtn}</div>`;}
+  const noteInd=(!todo.isRec&&todo.notes)?'<span class="note-indicator">&#9998; note</span>':'';
+  const noteClick=!todo.isRec?`onclick="toggleNotes('${key}',${todo.realIdx})"`:'';
+  const delBtn=todo.isRec?`<button class="delete-btn" onclick="event.stopPropagation();deleteRecurring('${todo.id}')" aria-label="Delete">&#10005;</button>`:`<button class="delete-btn" onclick="event.stopPropagation();deleteTodo('${key}',${todo.realIdx})" aria-label="Delete">&#10005;</button>`;
+  return`<div class="todo-item${todo.done?' done':''}" draggable="${!todo.isRec}" data-real-idx="${todo.realIdx}" data-key="${key}" ondragstart="startCrossDayDrag(event,'${key}',${todo.realIdx})"><input type="checkbox" ${todo.done?'checked':''} onchange="toggleTodo('${key}',${todo.realIdx},${todo.isRec},'${todo.id||''}')" aria-label="${escapeHtml(todo.text)}"><div class="todo-item-content" ${noteClick}><span class="todo-text">${escapeHtml(todo.text)}</span><div class="todo-meta">${prioTag}${recBadge}${noteInd}<span>${timeStr}</span></div></div>${delBtn}</div>`;}
 
 // --- Drag & Drop ---
 function initDragDrop(key){const lists=document.querySelectorAll('.todo-list[data-section="undone"]');lists.forEach(list=>{const items=list.querySelectorAll('.todo-item[draggable="true"]');items.forEach(item=>{
@@ -644,7 +722,113 @@ function changeMonth(delta){if(currentView==='week')currentDate.setDate(currentD
 function goToday(){currentDate=new Date();render();}
 function handleInputKey(e){if(e.key==='Enter')addTodo();}
 
-document.addEventListener('keydown',e=>{if(e.key==='Escape')closePanel();const isInput=e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'||e.target.isContentEditable;if(selectedDate&&document.getElementById('panel').style.display==='flex'&&!isInput){if(e.key==='ArrowLeft'){e.preventDefault();navDay(-1);}if(e.key==='ArrowRight'){e.preventDefault();navDay(1);}}});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){closePanel();closeFocusMode();}const isInput=e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'||e.target.isContentEditable;if(selectedDate&&document.getElementById('panel').style.display==='flex'&&!isInput){if(e.key==='ArrowLeft'){e.preventDefault();navDay(-1);}if(e.key==='ArrowRight'){e.preventDefault();navDay(1);}}});
+
+// --- Focus Mode ---
+function openFocusMode(){
+  const overlay=document.getElementById('focusOverlay');
+  overlay.classList.add('open');
+  const today=new Date();
+  document.getElementById('focusTitle').textContent=today.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});
+  renderFocusView();
+}
+function closeFocusMode(){document.getElementById('focusOverlay').classList.remove('open');}
+function renderFocusView(){
+  const key=dateKey(new Date());const dt=getTodosForDay(key);const container=document.getElementById('focusContent');
+  if(dt.length===0){container.innerHTML='<div class="focus-empty">Nothing planned for today. Enjoy your free day!</div><div style="text-align:center;margin-top:20px"><input class="week-add-input" style="max-width:300px;padding:12px 16px;font-size:0.9rem;border-radius:10px" placeholder="Add a task for today..." onkeydown="focusQuickAdd(event)"></div>';return;}
+  const done=dt.filter(t=>t.done).length,pct=Math.round((done/dt.length)*100);
+  const color=pct===100?'var(--green)':pct>=50?'var(--accent)':'var(--orange)';
+  let html=`<div class="focus-progress"><div class="big-pct" style="color:${color}">${pct}%</div><div class="sub">${done} of ${dt.length} tasks completed</div></div>`;
+  html+=`<div style="margin-bottom:16px"><input class="week-add-input" style="padding:12px 16px;font-size:0.88rem;border-radius:10px" placeholder="Add a task..." onkeydown="focusQuickAdd(event)"></div>`;
+  html+='<div class="focus-todo-list">';
+  dt.forEach((t,i)=>{
+    const doneCls=t.done?' done':'';const isRec=!!t.isRecurring;
+    const prioHtml=t.priority!=='low'?`<span class="focus-prio" style="background:${t.priority==='high'?'var(--red-dim)':'var(--orange-dim)'};color:${t.priority==='high'?'var(--red)':'var(--orange)'}">${t.priority}</span>`:'';
+    html+=`<div class="focus-todo-item${doneCls}" style="animation-delay:${i*0.05}s"><input type="checkbox" ${t.done?'checked':''} onchange="toggleFocusTodo(${i},${isRec},'${t.id||''}')" aria-label="${escapeHtml(t.text)}"><span class="focus-text">${escapeHtml(t.text)}</span>${prioHtml}<button class="delete-btn" onclick="deleteFocusTodo(${i},${isRec},'${t.id||''}')" style="opacity:0.6;font-size:0.9rem;padding:4px 8px;border:none;background:none;color:var(--text-muted);cursor:pointer" aria-label="Delete">&#10005;</button></div>`;
+  });
+  html+='</div>';container.innerHTML=html;
+}
+function toggleFocusTodo(idx,isRec,rid){
+  const key=dateKey(new Date());
+  if(isRec){if(!todos[key])todos[key]=[];const ex=todos[key].find(t=>t.recurringId===rid);if(ex)ex.done=!ex.done;else todos[key].push({recurringId:rid,done:true,text:'',priority:'low'});}
+  else{const nonRec=(todos[key]||[]).filter(t=>!t.recurringId);if(nonRec[idx])nonRec[idx].done=!nonRec[idx].done;}
+  saveTodos();renderFocusView();render();checkAllDone(key);
+}
+function deleteFocusTodo(idx,isRec,rid){
+  const key=dateKey(new Date());
+  if(isRec){deleteRecurring(rid);renderFocusView();return;}
+  const nri=[];(todos[key]||[]).forEach((t,i)=>{if(!t.recurringId)nri.push(i);});
+  const ai=nri[idx];if(ai===undefined)return;
+  todos[key].splice(ai,1);if(todos[key].length===0)delete todos[key];
+  saveTodos();renderFocusView();render();
+}
+function focusQuickAdd(e){
+  if(e.key!=='Enter'||!e.target.value.trim())return;
+  const key=dateKey(new Date());
+  if(!todos[key])todos[key]=[];
+  todos[key].push({text:e.target.value.trim(),done:false,priority:'low',created:new Date().toISOString()});
+  e.target.value='';saveTodos();renderFocusView();render();
+}
+
+// --- Notes on Todos ---
+function toggleNotes(key,realIdx){
+  const existing=document.getElementById(`notes-${key}-${realIdx}`);
+  if(existing){saveNote(key,realIdx);existing.remove();return;}
+  // Close other open notes
+  document.querySelectorAll('.todo-notes').forEach(n=>n.remove());
+  const item=document.querySelector(`.todo-item[data-real-idx="${realIdx}"][data-key="${key}"]`);
+  if(!item)return;
+  const nonRec=(todos[key]||[]).filter(t=>!t.recurringId);
+  const todo=nonRec[realIdx];if(!todo)return;
+  const notesDiv=document.createElement('div');
+  notesDiv.className='todo-notes';notesDiv.id=`notes-${key}-${realIdx}`;
+  notesDiv.innerHTML=`<textarea placeholder="Add notes, links, details..." onblur="saveNote('${key}',${realIdx})">${escapeHtml(todo.notes||'')}</textarea><div class="todo-notes-hint">Click outside to save</div>`;
+  item.querySelector('.todo-item-content').appendChild(notesDiv);
+  notesDiv.querySelector('textarea').focus();
+}
+function saveNote(key,realIdx){
+  const el=document.getElementById(`notes-${key}-${realIdx}`);if(!el)return;
+  const text=el.querySelector('textarea').value;
+  const nri=[];(todos[key]||[]).forEach((t,i)=>{if(!t.recurringId)nri.push(i);});
+  const actualIdx=nri[realIdx];if(actualIdx===undefined)return;
+  todos[key][actualIdx].notes=text;saveTodos();
+}
+
+// --- Cross-day Drag ---
+let draggedTodo=null;
+function startCrossDayDrag(e,key,realIdx){
+  const nonRec=(todos[key]||[]).filter(t=>!t.recurringId);
+  const todo=nonRec[realIdx];if(!todo)return;
+  draggedTodo={key,realIdx,todo:{...todo}};
+  e.dataTransfer.setData('text/plain','cross-day');
+  e.dataTransfer.effectAllowed='move';
+  e.target.classList.add('dragging');
+}
+function handleCalendarDragOver(e){e.preventDefault();e.dataTransfer.dropEffect='move';}
+function handleCalendarDragEnter(e){
+  const cell=e.currentTarget;cell.classList.add('drop-target');
+}
+function handleCalendarDragLeave(e){
+  const cell=e.currentTarget;cell.classList.remove('drop-target');
+}
+function handleCalendarDrop(e,targetKey){
+  e.preventDefault();e.currentTarget.classList.remove('drop-target');
+  if(!draggedTodo||draggedTodo.key===targetKey)return;
+  // Remove from source
+  const srcArr=todos[draggedTodo.key]||[];
+  const nri=[];srcArr.forEach((t,i)=>{if(!t.recurringId)nri.push(i);});
+  const actualIdx=nri[draggedTodo.realIdx];
+  if(actualIdx!==undefined){
+    srcArr.splice(actualIdx,1);
+    if(srcArr.length===0)delete todos[draggedTodo.key];else todos[draggedTodo.key]=srcArr;
+  }
+  // Add to target
+  if(!todos[targetKey])todos[targetKey]=[];
+  todos[targetKey].push(draggedTodo.todo);
+  draggedTodo=null;
+  saveTodos();render();
+  if(selectedDate){const key=dateKey(selectedDate);renderProgress(key);renderPanelTodoList(key);}
+}
 
 setView('month');
 </script>
