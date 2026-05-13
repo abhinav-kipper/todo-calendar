@@ -4,6 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Todo Calendar</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -653,6 +656,70 @@ kbd {
   font-family: inherit;
 }
 
+/* Auth */
+.auth-section {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.auth-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.auth-btn:hover {
+  background: var(--bg-tertiary);
+  border-color: var(--border-hover);
+  transform: translateY(-1px);
+}
+
+.auth-btn img {
+  width: 16px;
+  height: 16px;
+}
+
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.user-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+}
+
+.sign-out-btn {
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.sign-out-btn:hover {
+  color: var(--red);
+  border-color: var(--red);
+}
+
 /* Responsive */
 @media (max-width: 900px) {
   body { padding: 16px; }
@@ -676,13 +743,19 @@ kbd {
 <div class="header">
   <div class="header-left">
     <h1>Todo Calendar</h1>
-    <div class="sync-badge" id="syncBadge">Synced</div>
+    <div class="sync-badge" id="syncBadge">Local</div>
   </div>
   <div class="nav">
     <button onclick="changeMonth(-1)">&#8592;</button>
     <span class="month-label" id="monthLabel"></span>
     <button onclick="changeMonth(1)">&#8594;</button>
     <button class="btn-today" onclick="goToday()">Today</button>
+  </div>
+  <div class="auth-section" id="authSection">
+    <button class="auth-btn" onclick="signInWithGoogle()">
+      <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="G">
+      Sign in to sync
+    </button>
   </div>
 </div>
 
@@ -731,6 +804,60 @@ kbd {
 </div>
 
 <script>
+// --- Firebase Init ---
+firebase.initializeApp({
+  apiKey: "AIzaSyAMWjbYB6-uWEDHLIXc4wDUmT23vxor2kk",
+  authDomain: "todo-calendar-dde90.firebaseapp.com",
+  projectId: "todo-calendar-dde90",
+  storageBucket: "todo-calendar-dde90.firebasestorage.app",
+  messagingSenderId: "791175432633",
+  appId: "1:791175432633:web:8a95bfd236fe74f2b10e68"
+});
+
+const auth = firebase.auth();
+const db = firebase.firestore();
+let currentUser = null;
+
+// --- Auth ---
+function signInWithGoogle() {
+  const provider = new firebase.auth.GoogleAuthProvider();
+  auth.signInWithPopup(provider).catch(err => {
+    console.error('Sign-in error:', err);
+    alert('Sign-in failed: ' + err.message);
+  });
+}
+
+function signOut() {
+  auth.signOut();
+}
+
+auth.onAuthStateChanged(user => {
+  currentUser = user;
+  const section = document.getElementById('authSection');
+
+  if (user) {
+    section.innerHTML = `
+      <div class="user-info">
+        <img class="user-avatar" src="${user.photoURL || ''}" alt="">
+        <span>${user.displayName || user.email}</span>
+      </div>
+      <button class="sign-out-btn" onclick="signOut()">Sign out</button>
+    `;
+    showSyncStatus('Synced');
+    loadTodos();
+  } else {
+    section.innerHTML = `
+      <button class="auth-btn" onclick="signInWithGoogle()">
+        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="G">
+        Sign in to sync
+      </button>
+    `;
+    showSyncStatus('Local');
+    loadTodos();
+  }
+});
+
+// --- State ---
 let currentDate = new Date();
 let selectedDate = null;
 let currentPriority = 'low';
@@ -739,13 +866,25 @@ let saveTimeout = null;
 
 // --- Persistence ---
 async function loadTodos() {
-  try {
-    const res = await fetch('/api/todos');
-    if (res.ok) {
-      todos = await res.json();
+  if (currentUser) {
+    try {
+      const doc = await db.collection('users').doc(currentUser.uid).get();
+      if (doc.exists) {
+        todos = doc.data().todos || {};
+      } else {
+        // First sign-in: migrate localStorage data to Firestore
+        todos = JSON.parse(localStorage.getItem('todo-calendar-data') || '{}');
+        if (Object.keys(todos).length > 0) {
+          await db.collection('users').doc(currentUser.uid).set({ todos });
+        }
+      }
+      showSyncStatus('Synced');
+    } catch (e) {
+      console.error('Load error:', e);
+      todos = JSON.parse(localStorage.getItem('todo-calendar-data') || '{}');
+      showSyncStatus('Offline');
     }
-  } catch (e) {
-    // Fallback to localStorage
+  } else {
     todos = JSON.parse(localStorage.getItem('todo-calendar-data') || '{}');
   }
   renderCalendar();
@@ -753,29 +892,39 @@ async function loadTodos() {
 }
 
 function saveTodos() {
-  // Debounced save
   clearTimeout(saveTimeout);
   saveTimeout = setTimeout(async () => {
+    // Always save to localStorage as backup
     localStorage.setItem('todo-calendar-data', JSON.stringify(todos));
-    try {
-      await fetch('/api/todos', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(todos)
-      });
-      showSyncStatus('Synced');
-    } catch (e) {
-      showSyncStatus('Offline');
+
+    if (currentUser) {
+      try {
+        await db.collection('users').doc(currentUser.uid).set({ todos });
+        showSyncStatus('Synced');
+      } catch (e) {
+        console.error('Save error:', e);
+        showSyncStatus('Offline');
+      }
     }
-  }, 300);
+  }, 500);
 }
 
 function showSyncStatus(text) {
   const badge = document.getElementById('syncBadge');
   badge.textContent = text;
-  badge.style.color = text === 'Synced' ? 'var(--green)' : 'var(--orange)';
-  badge.style.borderColor = text === 'Synced' ? '#23863655' : '#d2992255';
-  badge.style.background = text === 'Synced' ? '#23863633' : '#d2992233';
+  if (text === 'Synced') {
+    badge.style.color = 'var(--green)';
+    badge.style.borderColor = '#23863655';
+    badge.style.background = '#23863633';
+  } else if (text === 'Local') {
+    badge.style.color = 'var(--accent)';
+    badge.style.borderColor = '#388bfd55';
+    badge.style.background = '#388bfd33';
+  } else {
+    badge.style.color = 'var(--orange)';
+    badge.style.borderColor = '#d2992255';
+    badge.style.background = '#d2992233';
+  }
 }
 
 // --- Helpers ---
@@ -831,10 +980,8 @@ function calculateStreak() {
     } else if (items && items.length > 0) {
       break;
     } else {
-      // No todos on this day, skip it (don't break streak for empty days)
       if (d < today) {
         d.setDate(d.getDate() - 1);
-        // But stop looking after 30 days back
         if ((today - d) / 86400000 > 30) break;
       } else {
         break;
@@ -979,7 +1126,6 @@ function renderTodoList(key) {
     return;
   }
 
-  // Sort: undone first (by priority high>medium>low), then done
   const prioOrder = { high: 0, medium: 1, low: 2 };
   const sorted = [...dayTodos.entries()].sort((a, b) => {
     if (a[1].done !== b[1].done) return a[1].done ? 1 : -1;
@@ -1071,7 +1217,6 @@ function handleInputKey(e) {
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') closeModal();
 
-  // Arrow keys to navigate days when modal is open
   if (selectedDate && document.getElementById('modal').classList.contains('open')) {
     if (e.key === 'ArrowLeft' && e.target.tagName !== 'INPUT') {
       e.preventDefault();
@@ -1086,8 +1231,8 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
-// Init
-loadTodos();
+// Init - auth state change will trigger loadTodos
+renderCalendar();
 </script>
 </body>
 </html>
