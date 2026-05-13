@@ -751,12 +751,6 @@ kbd {
     <button onclick="changeMonth(1)">&#8594;</button>
     <button class="btn-today" onclick="goToday()">Today</button>
   </div>
-  <div class="auth-section" id="authSection">
-    <button class="auth-btn" onclick="signInWithGoogle()">
-      <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="G">
-      Sign in to sync
-    </button>
-  </div>
 </div>
 
 <div class="stats-bar" id="statsBar">
@@ -764,6 +758,12 @@ kbd {
   <div class="stat-item pending"><span class="stat-num" id="statPending">0</span> pending</div>
   <div class="stat-item done"><span class="stat-num" id="statDone">0</span> done</div>
   <div class="stat-item streak"><span class="stat-num" id="statStreak">0</span> day streak</div>
+  <div style="margin-left:auto" class="auth-section" id="authSection">
+    <button class="auth-btn" onclick="signInWithGoogle()">
+      <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="G">
+      Sign in to sync
+    </button>
+  </div>
 </div>
 
 <div class="weekdays">
