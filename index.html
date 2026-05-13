@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -10,7 +10,8 @@
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
-:root {
+/* Theme Variables */
+[data-theme="dark"] {
   --bg-primary: #0d1117;
   --bg-secondary: #161b22;
   --bg-tertiary: #1c2128;
@@ -21,12 +22,43 @@
   --text-secondary: #8b949e;
   --text-muted: #484f58;
   --accent: #58a6ff;
-  --accent-dim: #388bfd44;
+  --accent-dim: #388bfd33;
+  --accent-subtle: #388bfd15;
   --green: #3fb950;
   --green-bg: #238636;
+  --green-dim: #23863633;
   --red: #f85149;
+  --red-dim: #f8514922;
   --orange: #d29922;
+  --orange-dim: #d2992233;
   --purple: #a371f7;
+  --shadow: rgba(0,0,0,0.4);
+  --modal-bg: rgba(0,0,0,0.75);
+}
+
+[data-theme="light"] {
+  --bg-primary: #ffffff;
+  --bg-secondary: #f6f8fa;
+  --bg-tertiary: #eef1f5;
+  --bg-card: #e8ecf0;
+  --border: #d1d9e0;
+  --border-hover: #afb8c1;
+  --text-primary: #1f2328;
+  --text-secondary: #59636e;
+  --text-muted: #8c959f;
+  --accent: #0969da;
+  --accent-dim: #0969da33;
+  --accent-subtle: #0969da10;
+  --green: #1a7f37;
+  --green-bg: #1a7f37;
+  --green-dim: #1a7f3720;
+  --red: #cf222e;
+  --red-dim: #cf222e18;
+  --orange: #9a6700;
+  --orange-dim: #9a670020;
+  --purple: #8250df;
+  --shadow: rgba(0,0,0,0.1);
+  --modal-bg: rgba(0,0,0,0.4);
 }
 
 body {
@@ -34,96 +66,91 @@ body {
   background: var(--bg-primary);
   color: var(--text-primary);
   min-height: 100vh;
-  padding: 32px;
-  transition: background 0.3s;
+  padding: 28px 32px;
+  transition: background 0.3s, color 0.3s;
 }
 
-/* Scrollbar */
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: var(--border-hover); }
 
 /* Header */
 .header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 28px;
-  padding: 0 4px;
+  margin-bottom: 20px;
 }
 
 .header-left {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 14px;
 }
 
 .header h1 {
-  font-size: 1.6rem;
+  font-size: 1.5rem;
   font-weight: 700;
-  color: var(--text-primary);
   letter-spacing: -0.5px;
 }
 
 .sync-badge {
-  font-size: 0.7rem;
-  padding: 3px 8px;
+  font-size: 0.68rem;
+  padding: 3px 9px;
   border-radius: 10px;
-  background: #23863633;
-  color: var(--green);
-  border: 1px solid #23863655;
+  background: var(--accent-dim);
+  color: var(--accent);
+  border: 1px solid var(--accent-dim);
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
+  font-weight: 500;
 }
 
 .sync-badge::before {
   content: '';
   width: 6px;
   height: 6px;
-  background: var(--green);
+  background: currentColor;
   border-radius: 50%;
   animation: pulse 2s infinite;
 }
 
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .nav {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
-.nav button {
-  background: var(--bg-card);
+.nav button, .icon-btn {
+  background: var(--bg-secondary);
   border: 1px solid var(--border);
   color: var(--text-primary);
-  padding: 8px 14px;
+  padding: 7px 12px;
   border-radius: 8px;
   cursor: pointer;
-  font-size: 0.85rem;
+  font-size: 0.82rem;
   transition: all 0.15s;
   font-weight: 500;
 }
 
-.nav button:hover {
+.nav button:hover, .icon-btn:hover {
   background: var(--bg-tertiary);
   border-color: var(--border-hover);
-  transform: translateY(-1px);
-}
-
-.nav button:active {
-  transform: translateY(0);
 }
 
 .nav .month-label {
-  font-size: 1.15rem;
+  font-size: 1.05rem;
   font-weight: 600;
-  min-width: 180px;
+  min-width: 160px;
   text-align: center;
 }
 
@@ -133,33 +160,36 @@ body {
   color: #fff !important;
 }
 
-.btn-today:hover {
-  background: #79c0ff !important;
+.icon-btn {
+  padding: 7px 10px;
+  font-size: 1rem;
+  line-height: 1;
 }
 
-/* Stats bar */
-.stats-bar {
+/* Stats + Auth bar */
+.toolbar {
   display: flex;
+  align-items: center;
   gap: 16px;
-  margin-bottom: 24px;
-  padding: 14px 20px;
+  margin-bottom: 20px;
+  padding: 12px 18px;
   background: var(--bg-secondary);
   border: 1px solid var(--border);
   border-radius: 10px;
+  flex-wrap: wrap;
 }
 
 .stat-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 0.82rem;
+  gap: 6px;
+  font-size: 0.78rem;
   color: var(--text-secondary);
 }
 
 .stat-num {
-  font-size: 1.1rem;
+  font-size: 1rem;
   font-weight: 700;
-  color: var(--text-primary);
 }
 
 .stat-item.pending .stat-num { color: var(--orange); }
@@ -167,19 +197,67 @@ body {
 .stat-item.total .stat-num { color: var(--accent); }
 .stat-item.streak .stat-num { color: var(--purple); }
 
+.auth-section {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.auth-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font-size: 0.78rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.auth-btn:hover { background: var(--bg-tertiary); border-color: var(--border-hover); }
+.auth-btn img { width: 14px; height: 14px; }
+
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+.user-avatar { width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--border); }
+
+.sign-out-btn {
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.68rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.sign-out-btn:hover { color: var(--red); border-color: var(--red); }
+
 /* Weekdays */
 .weekdays {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  margin-bottom: 6px;
+  margin-bottom: 4px;
 }
 
 .weekdays span {
   text-align: center;
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   font-weight: 600;
   color: var(--text-muted);
-  padding: 10px 0;
+  padding: 8px 0;
   text-transform: uppercase;
   letter-spacing: 0.8px;
 }
@@ -188,17 +266,17 @@ body {
 .calendar-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 5px;
+  gap: 4px;
 }
 
 .day-cell {
-  min-height: 100px;
+  min-height: 92px;
   background: var(--bg-secondary);
   border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 10px;
+  border-radius: 8px;
+  padding: 8px 9px;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.15s;
   position: relative;
   overflow: hidden;
 }
@@ -206,235 +284,219 @@ body {
 .day-cell:hover {
   background: var(--bg-tertiary);
   border-color: var(--accent-dim);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  transform: translateY(-1px);
+  box-shadow: 0 3px 10px var(--shadow);
 }
 
-.day-cell.today {
-  border-color: var(--accent);
-  box-shadow: inset 0 0 0 1px var(--accent-dim);
-}
-
-.day-cell.other-month {
-  opacity: 0.25;
-  pointer-events: none;
-}
-
-.day-cell.selected {
-  border-color: var(--accent);
-  background: var(--bg-tertiary);
-  box-shadow: 0 0 0 2px var(--accent-dim), 0 4px 12px rgba(0,0,0,0.3);
-}
-
-.day-cell.has-all-done {
-  border-color: var(--green);
-  box-shadow: inset 0 0 0 1px #3fb95022;
-}
+.day-cell.today { border-color: var(--accent); }
+.day-cell.other-month { opacity: 0.2; pointer-events: none; }
+.day-cell.selected { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-dim); }
+.day-cell.has-all-done { border-color: var(--green); }
 
 .day-number {
-  font-size: 0.82rem;
+  font-size: 0.78rem;
   font-weight: 600;
   color: var(--text-muted);
-  margin-bottom: 6px;
+  margin-bottom: 5px;
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
 
-.day-cell.today .day-number {
-  color: var(--accent);
-}
+.day-cell.today .day-number { color: var(--accent); }
 
 .day-badge {
-  font-size: 0.6rem;
+  font-size: 0.58rem;
   padding: 1px 5px;
-  border-radius: 8px;
+  border-radius: 6px;
   background: var(--accent-dim);
   color: var(--accent);
   font-weight: 600;
 }
 
-.day-cell.has-all-done .day-badge {
-  background: #3fb95022;
-  color: var(--green);
-}
+.day-cell.has-all-done .day-badge { background: var(--green-dim); color: var(--green); }
 
-.day-todos-preview {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
+.day-todos-preview { display: flex; flex-direction: column; gap: 2px; }
 
 .todo-preview-item {
   display: flex;
   align-items: center;
-  gap: 5px;
-  font-size: 0.68rem;
+  gap: 4px;
+  font-size: 0.64rem;
   color: var(--text-secondary);
   line-height: 1.4;
 }
 
-.todo-preview-item.done {
-  text-decoration: line-through;
-  opacity: 0.4;
-}
+.todo-preview-item.done { text-decoration: line-through; opacity: 0.4; }
 
 .todo-preview-dot {
-  width: 5px;
-  height: 5px;
+  width: 4px;
+  height: 4px;
   border-radius: 50%;
   background: var(--accent);
   flex-shrink: 0;
 }
 
-.todo-preview-item.done .todo-preview-dot {
-  background: var(--green);
-}
-
+.todo-preview-item.done .todo-preview-dot { background: var(--green); }
 .todo-preview-item.priority-high .todo-preview-dot { background: var(--red); }
 .todo-preview-item.priority-medium .todo-preview-dot { background: var(--orange); }
 
-.todo-overflow {
-  font-size: 0.6rem;
-  color: var(--text-muted);
-  margin-top: 2px;
-  padding-left: 10px;
-}
+.todo-overflow { font-size: 0.58rem; color: var(--text-muted); margin-top: 1px; padding-left: 8px; }
 
-/* Modal */
-.modal-overlay {
+/* Side Panel (replaces modal) */
+.panel-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.75);
-  backdrop-filter: blur(8px);
+  background: var(--modal-bg);
+  backdrop-filter: blur(6px);
   display: none;
-  align-items: center;
-  justify-content: center;
   z-index: 100;
-  padding: 24px;
   animation: fadeIn 0.2s;
 }
 
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
+.panel-overlay.open { display: block; }
 
-@keyframes slideUp {
-  from { transform: translateY(20px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
-}
+@keyframes fadeIn { from{opacity:0} to{opacity:1} }
+@keyframes slideIn { from{transform:translateX(100%)} to{transform:translateX(0)} }
 
-.modal-overlay.open {
-  display: flex;
-}
-
-.modal {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  width: 100%;
-  max-width: 480px;
-  max-height: 80vh;
-  overflow: hidden;
+.panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 420px;
+  max-width: 90vw;
+  height: 100vh;
+  background: var(--bg-primary);
+  border-left: 1px solid var(--border);
   display: flex;
   flex-direction: column;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
-  animation: slideUp 0.25s;
+  box-shadow: -8px 0 32px var(--shadow);
+  animation: slideIn 0.25s ease;
+  z-index: 101;
 }
 
-.modal-header {
-  padding: 22px 28px 18px;
+.panel-header {
+  padding: 28px 28px 20px;
   border-bottom: 1px solid var(--border);
+}
+
+.panel-header-top {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
+  margin-bottom: 16px;
 }
 
-.modal-header h2 {
-  font-size: 1.15rem;
-  font-weight: 600;
+.panel-header h2 {
+  font-size: 1.3rem;
+  font-weight: 700;
+  line-height: 1.2;
 }
 
-.modal-header-sub {
-  font-size: 0.75rem;
+.panel-header-sub {
+  font-size: 0.8rem;
   color: var(--text-muted);
-  margin-top: 2px;
+  margin-top: 4px;
 }
 
-.modal-close {
-  background: var(--bg-card);
+.panel-close {
+  background: var(--bg-secondary);
   border: 1px solid var(--border);
   color: var(--text-secondary);
-  font-size: 1.2rem;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
   cursor: pointer;
-  padding: 4px 10px;
-  border-radius: 6px;
-  line-height: 1;
+  font-size: 1rem;
   transition: all 0.15s;
 }
 
-.modal-close:hover {
-  color: var(--text-primary);
-  background: var(--bg-tertiary);
-  border-color: var(--border-hover);
+.panel-close:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+
+/* Progress */
+.panel-progress {
+  padding: 12px 16px;
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
 }
 
-.modal-body {
-  padding: 20px 28px 28px;
-  overflow-y: auto;
+.progress-ring {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+}
+
+.progress-ring circle {
+  fill: none;
+  stroke-width: 4;
+}
+
+.progress-ring .bg { stroke: var(--border); }
+.progress-ring .fill { stroke: var(--green); stroke-linecap: round; transition: stroke-dashoffset 0.5s ease; }
+
+.progress-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.progress-text .pct { font-size: 1.1rem; font-weight: 700; color: var(--green); }
+.progress-text .label { font-size: 0.72rem; color: var(--text-muted); }
+
+/* Panel body */
+.panel-body {
   flex: 1;
+  overflow-y: auto;
+  padding: 24px 28px;
 }
 
-/* Add todo form */
-.add-todo-form {
-  margin-bottom: 20px;
-}
+/* Add todo */
+.add-todo-form { margin-bottom: 24px; }
 
-.add-todo-row {
+.add-todo-input-row {
   display: flex;
   gap: 8px;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
 }
 
-.add-todo-row input {
+.add-todo-input-row input {
   flex: 1;
-  background: var(--bg-primary);
+  background: var(--bg-secondary);
   border: 1px solid var(--border);
   color: var(--text-primary);
   padding: 12px 16px;
-  border-radius: 8px;
+  border-radius: 10px;
   font-size: 0.9rem;
   outline: none;
   transition: all 0.15s;
 }
 
-.add-todo-row input:focus {
+.add-todo-input-row input:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-dim);
 }
 
-.add-todo-row input::placeholder {
-  color: var(--text-muted);
-}
+.add-todo-input-row input::placeholder { color: var(--text-muted); }
 
-.add-todo-row button {
+.add-todo-input-row button {
   background: var(--green-bg);
-  border: 1px solid #2ea043;
+  border: none;
   color: #fff;
   padding: 12px 20px;
-  border-radius: 8px;
+  border-radius: 10px;
   cursor: pointer;
   font-size: 0.85rem;
   font-weight: 600;
   transition: all 0.15s;
-  white-space: nowrap;
 }
 
-.add-todo-row button:hover {
-  background: #2ea043;
-  transform: translateY(-1px);
-}
+.add-todo-input-row button:hover { opacity: 0.9; transform: translateY(-1px); }
 
 .priority-selector {
   display: flex;
@@ -442,16 +504,13 @@ body {
   align-items: center;
 }
 
-.priority-selector span {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-}
+.priority-selector span { font-size: 0.72rem; color: var(--text-muted); }
 
 .priority-btn {
-  padding: 4px 10px;
-  border-radius: 12px;
+  padding: 5px 12px;
+  border-radius: 14px;
   border: 1px solid var(--border);
-  background: var(--bg-primary);
+  background: var(--bg-secondary);
   color: var(--text-secondary);
   font-size: 0.7rem;
   cursor: pointer;
@@ -459,53 +518,51 @@ body {
   font-weight: 500;
 }
 
-.priority-btn.active {
-  border-color: transparent;
-}
-
-.priority-btn.low.active { background: #388bfd33; color: var(--accent); }
-.priority-btn.medium.active { background: #d2992233; color: var(--orange); }
-.priority-btn.high.active { background: #f8514933; color: var(--red); }
+.priority-btn.active { border-color: transparent; }
+.priority-btn.low.active { background: var(--accent-dim); color: var(--accent); }
+.priority-btn.medium.active { background: var(--orange-dim); color: var(--orange); }
+.priority-btn.high.active { background: var(--red-dim); color: var(--red); }
 
 /* Todo list */
-.todo-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+.todo-section-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 10px;
+  padding-left: 2px;
 }
+
+.todo-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; }
 
 .todo-item {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 12px;
-  padding: 12px 14px;
-  background: var(--bg-primary);
-  border-radius: 8px;
+  padding: 14px 16px;
+  background: var(--bg-secondary);
+  border-radius: 10px;
   border: 1px solid var(--border);
   transition: all 0.15s;
-  animation: slideUp 0.2s;
 }
 
-.todo-item:hover {
-  border-color: var(--border-hover);
-  background: #0d1117cc;
-}
+.todo-item:hover { border-color: var(--border-hover); box-shadow: 0 2px 8px var(--shadow); }
 
 .todo-item input[type="checkbox"] {
   appearance: none;
-  width: 20px;
-  height: 20px;
+  width: 22px;
+  height: 22px;
   border: 2px solid var(--border);
-  border-radius: 50%;
+  border-radius: 6px;
   cursor: pointer;
   flex-shrink: 0;
+  margin-top: 1px;
   transition: all 0.2s;
   position: relative;
 }
 
-.todo-item input[type="checkbox"]:hover {
-  border-color: var(--green);
-}
+.todo-item input[type="checkbox"]:hover { border-color: var(--green); }
 
 .todo-item input[type="checkbox"]:checked {
   background: var(--green-bg);
@@ -515,8 +572,8 @@ body {
 .todo-item input[type="checkbox"]:checked::after {
   content: '';
   position: absolute;
-  left: 5px;
-  top: 2px;
+  left: 6px;
+  top: 3px;
   width: 5px;
   height: 9px;
   border: solid #fff;
@@ -524,127 +581,74 @@ body {
   transform: rotate(45deg);
 }
 
-.todo-item-content {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
+.todo-item-content { flex: 1; display: flex; flex-direction: column; gap: 4px; }
 
 .todo-item .todo-text {
-  font-size: 0.9rem;
+  font-size: 0.92rem;
+  font-weight: 500;
   color: var(--text-primary);
+  line-height: 1.4;
 }
 
-.todo-item.done .todo-text {
-  text-decoration: line-through;
-  color: var(--text-muted);
-}
+.todo-item.done .todo-text { text-decoration: line-through; color: var(--text-muted); font-weight: 400; }
 
 .todo-item .todo-meta {
-  font-size: 0.68rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.7rem;
   color: var(--text-muted);
 }
 
 .priority-tag {
-  font-size: 0.62rem;
-  padding: 1px 6px;
-  border-radius: 8px;
+  font-size: 0.6rem;
+  padding: 2px 7px;
+  border-radius: 6px;
   font-weight: 600;
   text-transform: uppercase;
+  letter-spacing: 0.3px;
 }
 
-.priority-tag.high { background: #f8514922; color: var(--red); }
-.priority-tag.medium { background: #d2992222; color: var(--orange); }
-.priority-tag.low { background: #388bfd22; color: var(--accent); }
+.priority-tag.high { background: var(--red-dim); color: var(--red); }
+.priority-tag.medium { background: var(--orange-dim); color: var(--orange); }
 
 .todo-item .delete-btn {
   background: none;
   border: none;
   color: var(--text-muted);
   cursor: pointer;
-  font-size: 1.1rem;
+  font-size: 0.9rem;
   padding: 4px 8px;
   border-radius: 6px;
   opacity: 0;
   transition: all 0.15s;
+  margin-top: 2px;
 }
 
-.todo-item:hover .delete-btn {
-  opacity: 1;
-}
-
-.todo-item .delete-btn:hover {
-  color: var(--red);
-  background: #f8514922;
-}
+.todo-item:hover .delete-btn { opacity: 1; }
+.todo-item .delete-btn:hover { color: var(--red); background: var(--red-dim); }
 
 .empty-state {
   text-align: center;
   color: var(--text-muted);
-  padding: 40px 0;
-  font-size: 0.9rem;
+  padding: 48px 0;
+  font-size: 0.88rem;
 }
 
-.empty-state-icon {
-  font-size: 2rem;
-  margin-bottom: 8px;
-  opacity: 0.4;
-}
+.empty-state-icon { font-size: 2.5rem; margin-bottom: 12px; opacity: 0.3; }
 
-/* Progress bar in modal */
-.progress-bar-container {
-  margin-bottom: 16px;
-  padding: 10px 14px;
-  background: var(--bg-primary);
-  border-radius: 8px;
-  border: 1px solid var(--border);
-}
-
-.progress-bar-header {
+/* Panel footer */
+.panel-footer {
+  padding: 14px 28px;
+  border-top: 1px solid var(--border);
   display: flex;
   justify-content: space-between;
-  margin-bottom: 8px;
-  font-size: 0.75rem;
-  color: var(--text-secondary);
+  align-items: center;
 }
 
-.progress-bar {
-  height: 4px;
-  background: var(--bg-card);
-  border-radius: 2px;
-  overflow: hidden;
-}
-
-.progress-bar-fill {
-  height: 100%;
-  background: linear-gradient(90deg, var(--green-bg), var(--green));
-  border-radius: 2px;
-  transition: width 0.4s ease;
-}
-
-/* Drag handle */
-.drag-handle {
-  cursor: grab;
-  color: var(--text-muted);
-  font-size: 0.8rem;
-  padding: 0 4px;
-  opacity: 0;
-  transition: opacity 0.15s;
-}
-
-.todo-item:hover .drag-handle {
-  opacity: 0.6;
-}
-
-/* Keyboard hint */
 .keyboard-hint {
-  font-size: 0.68rem;
+  font-size: 0.66rem;
   color: var(--text-muted);
-  text-align: center;
-  margin-top: 16px;
-  padding-top: 12px;
-  border-top: 1px solid var(--border);
 }
 
 kbd {
@@ -652,89 +656,41 @@ kbd {
   border: 1px solid var(--border);
   padding: 1px 5px;
   border-radius: 3px;
-  font-size: 0.65rem;
+  font-size: 0.62rem;
   font-family: inherit;
 }
 
-/* Auth */
-.auth-section {
+.panel-nav {
   display: flex;
-  align-items: center;
-  gap: 12px;
+  gap: 4px;
 }
 
-.auth-btn {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
-  border-radius: 8px;
+.panel-nav button {
+  background: var(--bg-secondary);
   border: 1px solid var(--border);
-  background: var(--bg-card);
-  color: var(--text-primary);
-  font-size: 0.82rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-
-.auth-btn:hover {
-  background: var(--bg-tertiary);
-  border-color: var(--border-hover);
-  transform: translateY(-1px);
-}
-
-.auth-btn img {
-  width: 16px;
-  height: 16px;
-}
-
-.user-info {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.8rem;
   color: var(--text-secondary);
-}
-
-.user-avatar {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  border: 2px solid var(--border);
-}
-
-.sign-out-btn {
-  padding: 4px 10px;
+  padding: 5px 10px;
   border-radius: 6px;
-  border: 1px solid var(--border);
-  background: transparent;
-  color: var(--text-muted);
-  font-size: 0.7rem;
   cursor: pointer;
+  font-size: 0.8rem;
   transition: all 0.15s;
 }
 
-.sign-out-btn:hover {
-  color: var(--red);
-  border-color: var(--red);
-}
+.panel-nav button:hover { background: var(--bg-tertiary); color: var(--text-primary); }
 
 /* Responsive */
 @media (max-width: 900px) {
-  body { padding: 16px; }
-  .day-cell { min-height: 70px; padding: 6px; }
+  body { padding: 14px; }
+  .day-cell { min-height: 64px; padding: 6px; }
   .todo-preview-item { display: none; }
-  .day-cell.has-todos .day-number .day-badge { display: inline; }
-  .stats-bar { flex-wrap: wrap; gap: 12px; }
+  .toolbar { gap: 10px; }
+  .panel { width: 100%; max-width: 100%; }
 }
 
 @media (max-width: 600px) {
-  body { padding: 10px; }
-  .header { flex-direction: column; gap: 12px; }
-  .day-cell { min-height: 50px; padding: 4px; border-radius: 6px; }
-  .day-number { font-size: 0.7rem; }
-  .modal { max-width: 100%; border-radius: 12px; }
+  .header { flex-wrap: wrap; gap: 10px; }
+  .day-cell { min-height: 48px; padding: 4px; border-radius: 6px; }
+  .day-number { font-size: 0.68rem; }
 }
 </style>
 </head>
@@ -745,20 +701,23 @@ kbd {
     <h1>Todo Calendar</h1>
     <div class="sync-badge" id="syncBadge">Local</div>
   </div>
-  <div class="nav">
-    <button onclick="changeMonth(-1)">&#8592;</button>
-    <span class="month-label" id="monthLabel"></span>
-    <button onclick="changeMonth(1)">&#8594;</button>
-    <button class="btn-today" onclick="goToday()">Today</button>
+  <div class="header-right">
+    <div class="nav">
+      <button onclick="changeMonth(-1)">&#8592;</button>
+      <span class="month-label" id="monthLabel"></span>
+      <button onclick="changeMonth(1)">&#8594;</button>
+      <button class="btn-today" onclick="goToday()">Today</button>
+    </div>
+    <button class="icon-btn" onclick="toggleTheme()" title="Toggle light/dark mode" id="themeBtn">&#9790;</button>
   </div>
 </div>
 
-<div class="stats-bar" id="statsBar">
+<div class="toolbar">
   <div class="stat-item total"><span class="stat-num" id="statTotal">0</span> this month</div>
   <div class="stat-item pending"><span class="stat-num" id="statPending">0</span> pending</div>
   <div class="stat-item done"><span class="stat-num" id="statDone">0</span> done</div>
-  <div class="stat-item streak"><span class="stat-num" id="statStreak">0</span> day streak</div>
-  <div style="margin-left:auto" class="auth-section" id="authSection">
+  <div class="stat-item streak"><span class="stat-num" id="statStreak">0</span> streak</div>
+  <div class="auth-section" id="authSection">
     <button class="auth-btn" onclick="signInWithGoogle()">
       <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="G">
       Sign in to sync
@@ -772,33 +731,39 @@ kbd {
 
 <div class="calendar-grid" id="calendarGrid"></div>
 
-<div class="modal-overlay" id="modal" onclick="closeModal(event)">
-  <div class="modal" onclick="event.stopPropagation()">
-    <div class="modal-header">
+<!-- Side Panel -->
+<div class="panel-overlay" id="panelOverlay" onclick="closePanel()"></div>
+<div class="panel" id="panel" style="display:none">
+  <div class="panel-header">
+    <div class="panel-header-top">
       <div>
-        <h2 id="modalTitle">Todos</h2>
-        <div class="modal-header-sub" id="modalSub"></div>
+        <h2 id="panelTitle">Tuesday</h2>
+        <div class="panel-header-sub" id="panelSub">May 13, 2026</div>
       </div>
-      <button class="modal-close" onclick="closeModal()">&#10005;</button>
+      <button class="panel-close" onclick="closePanel()">&#10005;</button>
     </div>
-    <div class="modal-body">
-      <div id="progressSection"></div>
-      <div class="add-todo-form">
-        <div class="add-todo-row">
-          <input type="text" id="todoInput" placeholder="What needs to be done?" onkeydown="handleInputKey(event)">
-          <button onclick="addTodo()">Add</button>
-        </div>
-        <div class="priority-selector">
-          <span>Priority:</span>
-          <button class="priority-btn low active" onclick="setPriority('low')">Low</button>
-          <button class="priority-btn medium" onclick="setPriority('medium')">Medium</button>
-          <button class="priority-btn high" onclick="setPriority('high')">High</button>
-        </div>
+    <div id="progressSection"></div>
+  </div>
+  <div class="panel-body">
+    <div class="add-todo-form">
+      <div class="add-todo-input-row">
+        <input type="text" id="todoInput" placeholder="Add a task..." onkeydown="handleInputKey(event)">
+        <button onclick="addTodo()">Add</button>
       </div>
-      <div class="todo-list" id="todoList"></div>
-      <div class="keyboard-hint">
-        <kbd>Enter</kbd> to add &middot; <kbd>Esc</kbd> to close &middot; <kbd>&#8592;</kbd> <kbd>&#8594;</kbd> navigate days
+      <div class="priority-selector">
+        <span>Priority:</span>
+        <button class="priority-btn low active" onclick="setPriority('low')">Low</button>
+        <button class="priority-btn medium" onclick="setPriority('medium')">Medium</button>
+        <button class="priority-btn high" onclick="setPriority('high')">High</button>
       </div>
+    </div>
+    <div id="todoListContainer"></div>
+  </div>
+  <div class="panel-footer">
+    <div class="keyboard-hint"><kbd>Enter</kbd> add &middot; <kbd>Esc</kbd> close</div>
+    <div class="panel-nav">
+      <button onclick="navDay(-1)">&#8592; Prev</button>
+      <button onclick="navDay(1)">Next &#8594;</button>
     </div>
   </div>
 </div>
@@ -818,6 +783,23 @@ const auth = firebase.auth();
 const db = firebase.firestore();
 let currentUser = null;
 
+// --- Theme ---
+function toggleTheme() {
+  const html = document.documentElement;
+  const next = html.dataset.theme === 'dark' ? 'light' : 'dark';
+  html.dataset.theme = next;
+  localStorage.setItem('todo-cal-theme', next);
+  document.getElementById('themeBtn').innerHTML = next === 'dark' ? '&#9790;' : '&#9728;';
+}
+
+(function initTheme() {
+  const saved = localStorage.getItem('todo-cal-theme');
+  if (saved) {
+    document.documentElement.dataset.theme = saved;
+    document.getElementById('themeBtn').innerHTML = saved === 'dark' ? '&#9790;' : '&#9728;';
+  }
+})();
+
 // --- Auth ---
 function signInWithGoogle() {
   const provider = new firebase.auth.GoogleAuthProvider();
@@ -827,14 +809,11 @@ function signInWithGoogle() {
   });
 }
 
-function signOut() {
-  auth.signOut();
-}
+function signOut() { auth.signOut(); }
 
 auth.onAuthStateChanged(user => {
   currentUser = user;
   const section = document.getElementById('authSection');
-
   if (user) {
     section.innerHTML = `
       <div class="user-info">
@@ -872,7 +851,6 @@ async function loadTodos() {
       if (doc.exists) {
         todos = doc.data().todos || {};
       } else {
-        // First sign-in: migrate localStorage data to Firestore
         todos = JSON.parse(localStorage.getItem('todo-calendar-data') || '{}');
         if (Object.keys(todos).length > 0) {
           await db.collection('users').doc(currentUser.uid).set({ todos });
@@ -894,9 +872,7 @@ async function loadTodos() {
 function saveTodos() {
   clearTimeout(saveTimeout);
   saveTimeout = setTimeout(async () => {
-    // Always save to localStorage as backup
     localStorage.setItem('todo-calendar-data', JSON.stringify(todos));
-
     if (currentUser) {
       try {
         await db.collection('users').doc(currentUser.uid).set({ todos });
@@ -913,28 +889,17 @@ function showSyncStatus(text) {
   const badge = document.getElementById('syncBadge');
   badge.textContent = text;
   if (text === 'Synced') {
-    badge.style.color = 'var(--green)';
-    badge.style.borderColor = '#23863655';
-    badge.style.background = '#23863633';
+    badge.style.color = 'var(--green)'; badge.style.borderColor = 'var(--green-dim)'; badge.style.background = 'var(--green-dim)';
   } else if (text === 'Local') {
-    badge.style.color = 'var(--accent)';
-    badge.style.borderColor = '#388bfd55';
-    badge.style.background = '#388bfd33';
+    badge.style.color = 'var(--accent)'; badge.style.borderColor = 'var(--accent-dim)'; badge.style.background = 'var(--accent-dim)';
   } else {
-    badge.style.color = 'var(--orange)';
-    badge.style.borderColor = '#d2992255';
-    badge.style.background = '#d2992233';
+    badge.style.color = 'var(--orange)'; badge.style.borderColor = 'var(--orange-dim)'; badge.style.background = 'var(--orange-dim)';
   }
 }
 
 // --- Helpers ---
-function dateKey(date) {
-  return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
-}
-
-function escapeHtml(str) {
-  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
+function dateKey(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+function escapeHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
 function getRelativeDay(key) {
   const today = new Date(); today.setHours(0,0,0,0);
@@ -948,10 +913,8 @@ function getRelativeDay(key) {
 
 // --- Stats ---
 function updateStats() {
-  const year = currentDate.getFullYear();
-  const month = currentDate.getMonth();
+  const year = currentDate.getFullYear(), month = currentDate.getMonth();
   let total = 0, done = 0;
-
   Object.entries(todos).forEach(([key, items]) => {
     const d = new Date(key + 'T00:00:00');
     if (d.getFullYear() === year && d.getMonth() === month) {
@@ -959,7 +922,6 @@ function updateStats() {
       done += items.filter(t => t.done).length;
     }
   });
-
   document.getElementById('statTotal').textContent = total;
   document.getElementById('statPending').textContent = total - done;
   document.getElementById('statDone').textContent = done;
@@ -970,59 +932,32 @@ function calculateStreak() {
   let streak = 0;
   const today = new Date(); today.setHours(0,0,0,0);
   let d = new Date(today);
-
   while (true) {
     const key = dateKey(d);
     const items = todos[key];
-    if (items && items.length > 0 && items.every(t => t.done)) {
-      streak++;
-      d.setDate(d.getDate() - 1);
-    } else if (items && items.length > 0) {
-      break;
-    } else {
-      if (d < today) {
-        d.setDate(d.getDate() - 1);
-        if ((today - d) / 86400000 > 30) break;
-      } else {
-        break;
-      }
-    }
+    if (items && items.length > 0 && items.every(t => t.done)) { streak++; d.setDate(d.getDate()-1); }
+    else if (items && items.length > 0) { break; }
+    else { if (d < today) { d.setDate(d.getDate()-1); if ((today-d)/86400000 > 30) break; } else break; }
   }
   return streak;
 }
 
-// --- Calendar Rendering ---
+// --- Calendar ---
 function renderCalendar() {
   const grid = document.getElementById('calendarGrid');
-  const year = currentDate.getFullYear();
-  const month = currentDate.getMonth();
-
-  document.getElementById('monthLabel').textContent =
-    new Date(year, month).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  const year = currentDate.getFullYear(), month = currentDate.getMonth();
+  document.getElementById('monthLabel').textContent = new Date(year, month).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 
   const firstDay = new Date(year, month, 1).getDay();
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const daysInMonth = new Date(year, month+1, 0).getDate();
   const daysInPrev = new Date(year, month, 0).getDate();
   const today = new Date();
-
   let html = '';
 
-  for (let i = firstDay - 1; i >= 0; i--) {
-    const d = new Date(year, month - 1, daysInPrev - i);
-    html += buildDayCell(d, daysInPrev - i, true, today);
-  }
-
-  for (let i = 1; i <= daysInMonth; i++) {
-    const d = new Date(year, month, i);
-    html += buildDayCell(d, i, false, today);
-  }
-
-  const totalCells = Math.ceil((firstDay + daysInMonth) / 7) * 7;
-  const remaining = totalCells - (firstDay + daysInMonth);
-  for (let i = 1; i <= remaining; i++) {
-    const d = new Date(year, month + 1, i);
-    html += buildDayCell(d, i, true, today);
-  }
+  for (let i = firstDay-1; i >= 0; i--) html += buildDayCell(new Date(year, month-1, daysInPrev-i), daysInPrev-i, true, today);
+  for (let i = 1; i <= daysInMonth; i++) html += buildDayCell(new Date(year, month, i), i, false, today);
+  const total = Math.ceil((firstDay+daysInMonth)/7)*7;
+  for (let i = 1; i <= total-(firstDay+daysInMonth); i++) html += buildDayCell(new Date(year, month+1, i), i, true, today);
 
   grid.innerHTML = html;
   updateStats();
@@ -1036,117 +971,119 @@ function buildDayCell(date, dayNum, otherMonth, today) {
   const hasTodos = dayTodos.length > 0;
   const allDone = hasTodos && dayTodos.every(t => t.done);
 
-  let classes = 'day-cell';
-  if (otherMonth) classes += ' other-month';
-  if (isToday) classes += ' today';
-  if (isSelected) classes += ' selected';
-  if (hasTodos) classes += ' has-todos';
-  if (allDone) classes += ' has-all-done';
+  let cls = 'day-cell';
+  if (otherMonth) cls += ' other-month';
+  if (isToday) cls += ' today';
+  if (isSelected) cls += ' selected';
+  if (hasTodos) cls += ' has-todos';
+  if (allDone) cls += ' has-all-done';
 
   let badge = '';
-  if (hasTodos) {
-    const doneCount = dayTodos.filter(t => t.done).length;
-    badge = `<span class="day-badge">${doneCount}/${dayTodos.length}</span>`;
-  }
+  if (hasTodos) { const dc = dayTodos.filter(t=>t.done).length; badge = `<span class="day-badge">${dc}/${dayTodos.length}</span>`; }
 
   let preview = '';
-  const maxShow = 3;
-  dayTodos.slice(0, maxShow).forEach(t => {
-    const doneClass = t.done ? ' done' : '';
-    const prioClass = t.priority !== 'low' ? ` priority-${t.priority}` : '';
-    const text = t.text.length > 16 ? t.text.slice(0, 16) + '...' : t.text;
-    preview += `<div class="todo-preview-item${doneClass}${prioClass}"><span class="todo-preview-dot"></span>${escapeHtml(text)}</div>`;
+  dayTodos.slice(0,3).forEach(t => {
+    const d = t.done ? ' done' : '';
+    const p = t.priority !== 'low' ? ` priority-${t.priority}` : '';
+    const txt = t.text.length > 15 ? t.text.slice(0,15)+'...' : t.text;
+    preview += `<div class="todo-preview-item${d}${p}"><span class="todo-preview-dot"></span>${escapeHtml(txt)}</div>`;
   });
-  if (dayTodos.length > maxShow) {
-    preview += `<div class="todo-overflow">+${dayTodos.length - maxShow} more</div>`;
-  }
+  if (dayTodos.length > 3) preview += `<div class="todo-overflow">+${dayTodos.length-3} more</div>`;
 
-  return `<div class="${classes}" onclick="openDay('${key}')">
-    <div class="day-number">${dayNum}${badge}</div>
-    <div class="day-todos-preview">${preview}</div>
-  </div>`;
+  return `<div class="${cls}" onclick="openDay('${key}')"><div class="day-number">${dayNum}${badge}</div><div class="day-todos-preview">${preview}</div></div>`;
 }
 
-// --- Modal ---
+// --- Panel ---
 function openDay(key) {
   selectedDate = new Date(key + 'T00:00:00');
-  document.getElementById('modal').classList.add('open');
+  document.getElementById('panelOverlay').classList.add('open');
+  document.getElementById('panel').style.display = 'flex';
 
-  const d = new Date(key + 'T00:00:00');
-  document.getElementById('modalTitle').textContent =
-    d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
-
-  const relative = getRelativeDay(key);
-  document.getElementById('modalSub').textContent = relative;
+  const d = selectedDate;
+  document.getElementById('panelTitle').textContent = d.toLocaleDateString('en-US', { weekday: 'long' });
+  const sub = d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  const rel = getRelativeDay(key);
+  document.getElementById('panelSub').textContent = rel ? `${sub} \u2022 ${rel}` : sub;
 
   renderProgress(key);
   renderTodoList(key);
   renderCalendar();
-
-  setTimeout(() => document.getElementById('todoInput').focus(), 100);
+  setTimeout(() => document.getElementById('todoInput').focus(), 150);
 }
 
-function closeModal(e) {
-  if (e && e.target !== e.currentTarget) return;
-  document.getElementById('modal').classList.remove('open');
+function closePanel() {
+  document.getElementById('panelOverlay').classList.remove('open');
+  document.getElementById('panel').style.display = 'none';
   selectedDate = null;
   renderCalendar();
+}
+
+function navDay(delta) {
+  if (!selectedDate) return;
+  selectedDate.setDate(selectedDate.getDate() + delta);
+  openDay(dateKey(selectedDate));
 }
 
 function renderProgress(key) {
   const dayTodos = todos[key] || [];
   const section = document.getElementById('progressSection');
-
-  if (dayTodos.length === 0) {
-    section.innerHTML = '';
-    return;
-  }
+  if (dayTodos.length === 0) { section.innerHTML = ''; return; }
 
   const done = dayTodos.filter(t => t.done).length;
   const pct = Math.round((done / dayTodos.length) * 100);
+  const circumference = 2 * Math.PI * 18;
+  const offset = circumference - (pct / 100) * circumference;
 
-  section.innerHTML = `<div class="progress-bar-container">
-    <div class="progress-bar-header">
-      <span>${done} of ${dayTodos.length} completed</span>
-      <span>${pct}%</span>
+  section.innerHTML = `<div class="panel-progress">
+    <svg class="progress-ring" viewBox="0 0 44 44">
+      <circle class="bg" cx="22" cy="22" r="18"/>
+      <circle class="fill" cx="22" cy="22" r="18" stroke-dasharray="${circumference}" stroke-dashoffset="${offset}" transform="rotate(-90 22 22)"/>
+    </svg>
+    <div class="progress-text">
+      <span class="pct">${pct}%</span>
+      <span class="label">${done} of ${dayTodos.length} done</span>
     </div>
-    <div class="progress-bar"><div class="progress-bar-fill" style="width:${pct}%"></div></div>
   </div>`;
 }
 
 function renderTodoList(key) {
   const dayTodos = todos[key] || [];
-  const list = document.getElementById('todoList');
+  const container = document.getElementById('todoListContainer');
 
   if (dayTodos.length === 0) {
-    list.innerHTML = `<div class="empty-state">
-      <div class="empty-state-icon">&#9744;</div>
-      No todos yet. Add one above!
-    </div>`;
+    container.innerHTML = `<div class="empty-state"><div class="empty-state-icon">&#9744;</div>No tasks yet. Add one above!</div>`;
     return;
   }
 
-  const prioOrder = { high: 0, medium: 1, low: 2 };
-  const sorted = [...dayTodos.entries()].sort((a, b) => {
-    if (a[1].done !== b[1].done) return a[1].done ? 1 : -1;
-    return (prioOrder[a[1].priority] || 2) - (prioOrder[b[1].priority] || 2);
-  });
+  const prioOrder = {high:0, medium:1, low:2};
+  const undone = [...dayTodos.entries()].filter(([,t]) => !t.done).sort((a,b) => (prioOrder[a[1].priority]||2) - (prioOrder[b[1].priority]||2));
+  const done = [...dayTodos.entries()].filter(([,t]) => t.done);
 
-  list.innerHTML = sorted.map(([i, todo]) => {
-    const prioTag = todo.priority !== 'low'
-      ? `<span class="priority-tag ${todo.priority}">${todo.priority}</span>`
-      : '';
-    const timeStr = todo.created ? new Date(todo.created).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '';
+  let html = '';
+  if (undone.length > 0) {
+    html += `<div class="todo-section-label">To do (${undone.length})</div><div class="todo-list">`;
+    html += undone.map(([i, todo]) => renderTodoItem(key, i, todo)).join('');
+    html += '</div>';
+  }
+  if (done.length > 0) {
+    html += `<div class="todo-section-label">Completed (${done.length})</div><div class="todo-list">`;
+    html += done.map(([i, todo]) => renderTodoItem(key, i, todo)).join('');
+    html += '</div>';
+  }
+  container.innerHTML = html;
+}
 
-    return `<div class="todo-item${todo.done ? ' done' : ''}">
-      <input type="checkbox" ${todo.done ? 'checked' : ''} onchange="toggleTodo('${key}', ${i})">
-      <div class="todo-item-content">
-        <span class="todo-text">${escapeHtml(todo.text)}</span>
-        <span class="todo-meta">${prioTag} ${timeStr}</span>
-      </div>
-      <button class="delete-btn" onclick="deleteTodo('${key}', ${i})">&#10005;</button>
-    </div>`;
-  }).join('');
+function renderTodoItem(key, i, todo) {
+  const prioTag = todo.priority !== 'low' ? `<span class="priority-tag ${todo.priority}">${todo.priority}</span>` : '';
+  const timeStr = todo.created ? new Date(todo.created).toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit'}) : '';
+  return `<div class="todo-item${todo.done ? ' done' : ''}">
+    <input type="checkbox" ${todo.done ? 'checked' : ''} onchange="toggleTodo('${key}',${i})">
+    <div class="todo-item-content">
+      <span class="todo-text">${escapeHtml(todo.text)}</span>
+      <div class="todo-meta">${prioTag}<span>${timeStr}</span></div>
+    </div>
+    <button class="delete-btn" onclick="deleteTodo('${key}',${i})">&#10005;</button>
+  </div>`;
 }
 
 // --- Actions ---
@@ -1154,30 +1091,18 @@ function addTodo() {
   const input = document.getElementById('todoInput');
   const text = input.value.trim();
   if (!text || !selectedDate) return;
-
   const key = dateKey(selectedDate);
   if (!todos[key]) todos[key] = [];
-  todos[key].push({
-    text,
-    done: false,
-    priority: currentPriority,
-    created: new Date().toISOString()
-  });
+  todos[key].push({ text, done: false, priority: currentPriority, created: new Date().toISOString() });
   saveTodos();
-
   input.value = '';
-  renderProgress(key);
-  renderTodoList(key);
-  renderCalendar();
+  renderProgress(key); renderTodoList(key); renderCalendar();
 }
 
 function toggleTodo(key, index) {
   if (todos[key] && todos[key][index]) {
     todos[key][index].done = !todos[key][index].done;
-    saveTodos();
-    renderProgress(key);
-    renderTodoList(key);
-    renderCalendar();
+    saveTodos(); renderProgress(key); renderTodoList(key); renderCalendar();
   }
 }
 
@@ -1185,53 +1110,27 @@ function deleteTodo(key, index) {
   if (todos[key]) {
     todos[key].splice(index, 1);
     if (todos[key].length === 0) delete todos[key];
-    saveTodos();
-    renderProgress(key);
-    renderTodoList(key);
-    renderCalendar();
+    saveTodos(); renderProgress(key); renderTodoList(key); renderCalendar();
   }
 }
 
 function setPriority(p) {
   currentPriority = p;
-  document.querySelectorAll('.priority-btn').forEach(btn => {
-    btn.classList.toggle('active', btn.classList.contains(p));
-  });
+  document.querySelectorAll('.priority-btn').forEach(btn => btn.classList.toggle('active', btn.classList.contains(p)));
 }
 
-function changeMonth(delta) {
-  currentDate.setMonth(currentDate.getMonth() + delta);
-  renderCalendar();
-}
+function changeMonth(delta) { currentDate.setMonth(currentDate.getMonth()+delta); renderCalendar(); }
+function goToday() { currentDate = new Date(); renderCalendar(); }
+function handleInputKey(e) { if (e.key === 'Enter') addTodo(); }
 
-function goToday() {
-  currentDate = new Date();
-  renderCalendar();
-}
-
-function handleInputKey(e) {
-  if (e.key === 'Enter') addTodo();
-}
-
-// Keyboard navigation
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') closeModal();
-
-  if (selectedDate && document.getElementById('modal').classList.contains('open')) {
-    if (e.key === 'ArrowLeft' && e.target.tagName !== 'INPUT') {
-      e.preventDefault();
-      selectedDate.setDate(selectedDate.getDate() - 1);
-      openDay(dateKey(selectedDate));
-    }
-    if (e.key === 'ArrowRight' && e.target.tagName !== 'INPUT') {
-      e.preventDefault();
-      selectedDate.setDate(selectedDate.getDate() + 1);
-      openDay(dateKey(selectedDate));
-    }
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closePanel();
+  if (selectedDate && document.getElementById('panel').style.display === 'flex') {
+    if (e.key === 'ArrowLeft' && e.target.tagName !== 'INPUT') { e.preventDefault(); navDay(-1); }
+    if (e.key === 'ArrowRight' && e.target.tagName !== 'INPUT') { e.preventDefault(); navDay(1); }
   }
 });
 
-// Init - auth state change will trigger loadTodos
 renderCalendar();
 </script>
 </body>
