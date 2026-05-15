@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head><title>Generate PWA Icons</title></head>
+<body>
+<h2>PWA Icon Generator</h2>
+<p>Right-click each image below and "Save Image As" to the <code>icons/</code> folder.</p>
+<div id="output"></div>
+<script>
+const SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <rect width="100" height="100" rx="16" fill="#0a0e14"/>
+  <g transform="translate(5,2) scale(0.9)">
+    <ellipse cx="50" cy="88" rx="22" ry="6" fill="#b8d4f0" opacity="0.3"/>
+    <ellipse cx="50" cy="62" rx="28" ry="34" fill="#d8eafc"/>
+    <ellipse cx="50" cy="60" rx="22" ry="28" fill="#f0f7ff"/>
+    <circle cx="50" cy="28" r="22" fill="#d8eafc"/>
+    <circle cx="42" cy="24" r="4" fill="#1a2030"/>
+    <circle cx="58" cy="24" r="4" fill="#1a2030"/>
+    <circle cx="43" cy="23" r="1.5" fill="white"/>
+    <circle cx="59" cy="23" r="1.5" fill="white"/>
+    <ellipse cx="50" cy="32" rx="5" ry="3.5" fill="#ffb347"/>
+    <polygon points="50,30 45,34 55,34" fill="#ff9500"/>
+    <ellipse cx="30" cy="58" rx="10" ry="5" fill="#a8d0f0" transform="rotate(-15 30 58)"/>
+    <ellipse cx="70" cy="58" rx="10" ry="5" fill="#a8d0f0" transform="rotate(15 70 58)"/>
+    <ellipse cx="38" cy="82" rx="7" ry="4" fill="#ffb347" transform="rotate(-5 38 82)"/>
+    <ellipse cx="62" cy="82" rx="7" ry="4" fill="#ffb347" transform="rotate(5 62 82)"/>
+    <rect x="44" y="45" rx="3" width="12" height="14" fill="#6ea8fe" opacity="0.6"/>
+    <rect x="44" y="45" rx="2" width="12" height="4" fill="#6ea8fe"/>
+    <rect x="46" y="51" width="3" height="3" rx="1" fill="#5cdb7f"/>
+    <rect x="51" y="51" width="3" height="3" rx="1" fill="#b88cff" opacity="0.6"/>
+  </g>
+</svg>`;
+
+function generateIcon(size) {
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  const img = new Image();
+  const blob = new Blob([SVG], { type: 'image/svg+xml' });
+  const url = URL.createObjectURL(blob);
+  img.onload = () => {
+    ctx.drawImage(img, 0, 0, size, size);
+    URL.revokeObjectURL(url);
+    const png = canvas.toDataURL('image/png');
+    const el = document.createElement('div');
+    el.innerHTML = `<h3>icon-${size}.png (${size}x${size})</h3><img src="${png}" width="${size}" style="border:1px solid #ccc"><br><a href="${png}" download="icon-${size}.png">Download</a>`;
+    document.getElementById('output').appendChild(el);
+  };
+  img.src = url;
+}
+
+generateIcon(192);
+generateIcon(512);
+</script>
+</body>
+</html>

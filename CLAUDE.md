@@ -17,6 +17,14 @@ Vanilla ES modules, no bundler. Uses `<script type="module">` which works native
 todo-calendar/
 ├── index.html          # HTML shell (no logic, just structure + onclick=app.*)
 ├── style.css           # All styles (themes, glassmorphism, spring animations, responsive)
+├── manifest.json       # PWA manifest (app name, icons, display mode)
+├── sw.js               # Service worker (cache-first for static, network-first for Firebase)
+├── icons/
+│   ├── icon-192.svg    # PWA icon 192x192
+│   ├── icon-512.svg    # PWA icon 512x512
+│   ├── icon-192.png    # PNG fallback (generate via icons/generate.html)
+│   ├── icon-512.png    # PNG fallback (generate via icons/generate.html)
+│   └── generate.html   # Open in browser to generate PNG icons from SVG
 ├── js/
 │   ├── app.js          # Main orchestrator: init, view routing, window.app API, all render functions
 │   ├── store.js        # State, Firebase, persistence, CRUD (todos, recurring, inbox)
@@ -94,6 +102,15 @@ todo-calendar/
 - Glow effects on today cell and hover states
 - Gradient title, buttons, progress ring
 
+### PWA (Progressive Web App)
+- Installable on iOS/Android home screens (standalone mode, no browser chrome)
+- Offline support via service worker (cache-first for static assets)
+- Network-first strategy for Firebase API calls (sync when online, degrade gracefully offline)
+- Versioned cache (`CACHE_NAME` in sw.js) - bump version to force update
+- Safe-area-inset padding for notched phones
+- Touch targets sized to 44px minimum on touch devices
+- To update the cached app: bump `CACHE_NAME` in `sw.js`, deploy, user gets new version on next visit
+
 ## Local Development
 
 ```bash
@@ -110,6 +127,8 @@ Upload all files to the GitHub repo manually (no git CLI configured for personal
 
 **Important:** When deploying, upload these files:
 - `index.html`, `style.css`
+- `manifest.json`, `sw.js`
+- `icons/` folder (SVG icons, plus PNGs if generated)
 - `js/` folder (all .js files)
 - `tests/` folder (optional, for dev only)
 
