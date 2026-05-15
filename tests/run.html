@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Todo Calendar Tests</title>
+  <style>
+    body { font-family: monospace; background: #1a1a2e; color: #e0e0e0; padding: 24px; }
+    h1 { color: #6ea8fe; margin-bottom: 16px; }
+    pre { white-space: pre-wrap; line-height: 1.6; }
+  </style>
+</head>
+<body>
+  <h1>Todo Calendar - Test Runner</h1>
+  <pre id="output">Running tests...</pre>
+  <script type="module">
+    // Capture console output
+    const output = document.getElementById('output');
+    const lines = [];
+    const origLog = console.log;
+    const origErr = console.error;
+    console.log = (...args) => { lines.push(args.join(' ')); origLog(...args); };
+    console.error = (...args) => { lines.push('❌ ' + args.join(' ')); origErr(...args); };
+
+    // Run tests
+    await import('./utils.test.js');
+
+    output.innerHTML = lines.join('\n');
+  </script>
+</body>
+</html>
