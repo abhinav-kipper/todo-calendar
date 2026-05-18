@@ -107,6 +107,7 @@ export function saveTodos(immediate = false) {
     if (currentUser) {
       try {
         await db.collection('users').doc(currentUser.uid).set({ todos, recurring });
+        syncWidgetDoc();
         return 'Synced';
       } catch (e) { return 'Offline'; }
     }
@@ -114,6 +115,33 @@ export function saveTodos(immediate = false) {
   };
   if (immediate) return doSave();
   saveTimeout = setTimeout(() => doSave().then(s => onStateChange(s)), 500);
+}
+
+// Write today's summary to a public-readable doc for desktop widget
+function syncWidgetDoc() {
+  const now = new Date();
+  const todayKey = dateKey(now);
+  const dow = now.getDay();
+  const todayTodos = (todos[todayKey] || []).filter(t => !t.recurringId);
+  const recurringToday = recurring.filter(r => {
+    const start = new Date(r.startDate + 'T12:00:00');
+    if (now < start) return false;
+    if (r.repeat === 'daily') return true;
+    if (r.repeat === 'weekdays') return dow >= 1 && dow <= 5;
+    if (r.repeat === 'weekly') return dow === start.getDay();
+    return false;
+  }).map(r => {
+    const marker = (todos[todayKey] || []).find(t => t.recurringId === r.id);
+    return { text: r.text, done: !!(marker && marker.done), priority: r.priority, isRecurring: true };
+  });
+  const all = [...todayTodos.map(t => ({ text: t.text, done: t.done, priority: t.priority })), ...recurringToday];
+  db.collection('public').doc('widget').set({
+    date: todayKey,
+    total: all.length,
+    done: all.filter(t => t.done).length,
+    todos: all,
+    updatedAt: new Date().toISOString()
+  }).catch(() => {});
 }
 
 // --- Todo CRUD ---
