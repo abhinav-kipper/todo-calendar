@@ -10,10 +10,11 @@ export function escapeHtml(s) {
 
 export function getRelativeDay(key) {
   const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  if (key === todayKey) return 'Today';
   const d = new Date(key + 'T12:00:00');
-  const diff = Math.round((d - today) / 86400000);
-  if (diff === 0) return 'Today';
+  const t = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 12);
+  const diff = Math.round((d - t) / 86400000);
   if (diff === 1) return 'Tomorrow';
   if (diff === -1) return 'Yesterday';
   return '';

@@ -167,8 +167,18 @@ function openDay(key) {
   const sub = selectedDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
   const rel = getRelativeDay(key);
   document.getElementById('panelSub').textContent = rel ? `${sub} \u2022 ${rel}` : sub;
-  renderProgress(key); renderPanelTodoList(key); render();
+  renderProgress(key); renderPanelTodoList(key); renderYesterdayCarry(key); render();
   setTimeout(() => document.getElementById('todoInput').focus(), 150);
+}
+
+function renderYesterdayCarry(key) {
+  const banner = document.getElementById('yesterdayCarryBanner');
+  if (!banner) return;
+  const todayKey = dateKey(new Date());
+  if (key !== todayKey) { banner.innerHTML = ''; return; }
+  const count = store.getYesterdayOpenCount();
+  if (count === 0) { banner.innerHTML = ''; return; }
+  banner.innerHTML = `<div class="carry-forward-banner"><span>&#8634; <strong>${count}</strong> unfinished task${count > 1 ? 's' : ''} from yesterday</span><button onclick="app.carryYesterdayToToday()">Move to Today</button></div>`;
 }
 
 function closePanel() {
@@ -406,7 +416,14 @@ window.app = {
   focusQuickAdd(e) { if (e.key !== 'Enter' || !e.target.value.trim()) return; const key = dateKey(new Date()); store.addTodo(key, e.target.value.trim(), 'low', 'none'); e.target.value = ''; renderFocusView(); render(); },
 
   // Carry forward
-  carryForwardAll() { store.carryForwardAll(); render(); document.getElementById('carryForwardBanner').innerHTML = ''; },
+  carryForwardAll() { store.carryForwardAll(); render(); document.getElementById('carryForwardBanner').innerHTML = ''; if (selectedDate) { const k = dateKey(selectedDate); renderProgress(k); renderPanelTodoList(k); renderYesterdayCarry(k); } },
+  carryYesterdayToToday() {
+    const moved = store.moveYesterdayToToday();
+    if (moved === 0) return;
+    render();
+    if (selectedDate) { const k = dateKey(selectedDate); renderProgress(k); renderPanelTodoList(k); renderYesterdayCarry(k); }
+    checkCarryForward();
+  },
 
   // Export/Import
   exportData: () => store.exportData(),
