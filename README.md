@@ -180,7 +180,4 @@ git push origin feature/your-feature-name
 ```
 
 5. Open a Pull Request
-
-
-Add one if you want others to reuse or contribute under clear terms.
 ````
