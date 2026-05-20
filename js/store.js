@@ -231,6 +231,34 @@ export function saveNote(key, realIdx, text) {
   saveTodos();
 }
 
+export function getYesterdayOpenCount() {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const y = new Date(today);
+  y.setDate(y.getDate() - 1);
+  const yKey = dateKey(y);
+  if (!todos[yKey]) return 0;
+  return todos[yKey].filter(t => !t.recurringId && !t.done).length;
+}
+
+export function moveYesterdayToToday() {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todayKey = dateKey(today);
+  const y = new Date(today);
+  y.setDate(y.getDate() - 1);
+  const yKey = dateKey(y);
+  if (!todos[yKey]) return 0;
+  const toMove = todos[yKey].filter(t => !t.recurringId && !t.done);
+  if (toMove.length === 0) return 0;
+  const toKeep = todos[yKey].filter(t => t.recurringId || t.done);
+  if (!todos[todayKey]) todos[todayKey] = [];
+  todos[todayKey].push(...toMove);
+  if (toKeep.length === 0) delete todos[yKey]; else todos[yKey] = toKeep;
+  saveTodos();
+  return toMove.length;
+}
+
 export function carryForwardAll() {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
