@@ -1,12 +1,12 @@
 {
-  "name": "Todo Calendar",
-  "short_name": "Todos",
-  "description": "Calendar-based todo app with cloud sync",
+  "name": "Almanac",
+  "short_name": "Almanac",
+  "description": "A cute lil' todo calendar 🌱",
   "start_url": "/todo-calendar/",
   "scope": "/todo-calendar/",
   "display": "standalone",
-  "background_color": "#0a0e14",
-  "theme_color": "#6ea8fe",
+  "background_color": "#FAF3F8",
+  "theme_color": "#FAF3F8",
   "icons": [
     { "src": "icons/icon-192.svg", "sizes": "192x192", "type": "image/svg+xml" },
     { "src": "icons/icon-512.svg", "sizes": "512x512", "type": "image/svg+xml" },
