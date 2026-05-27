@@ -586,7 +586,9 @@ function App() {
         view={view} setView={setView}
         inboxCount={inboxCount}
         todayPending={todayTotal - todayDone}
-        onOpenFocus={() => setFocusOpen(true)}
+        focusOpen={focusOpen}
+        setFocusOpen={setFocusOpen}
+        closeDayPanel={() => setOpenDay(null)}
       />
 
       <TweaksPanel title="Tweaks">
@@ -750,24 +752,36 @@ function QuickAddBar({ onAdd, inputRef, today }) {
 }
 
 // ─── MobileTabBar ─────────────────────────────────────────────────────────
-function MobileTabBar({ view, setView, inboxCount, todayPending, onOpenFocus }) {
+function MobileTabBar({ view, setView, inboxCount, todayPending, focusOpen, setFocusOpen, closeDayPanel }) {
   const tabs = [
     { id: "today", label: "Today", icon: "☀", count: todayPending },
     { id: "month", label: "Cal", icon: "▦" },
     { id: "inbox", label: "Inbox", icon: "✉", count: inboxCount },
     { id: "focus", label: "Focus", icon: "◉" },
   ];
+  const onTabClick = (id) => {
+    closeDayPanel();
+    if (id === "focus") {
+      setFocusOpen(!focusOpen);
+    } else {
+      setFocusOpen(false);
+      setView(id);
+    }
+  };
   return (
     <nav className="mobile-tabs" role="tablist">
-      {tabs.map(t => (
-        <button key={t.id} role="tab" aria-selected={view === t.id}
-          className={`mtab ${view === t.id ? "active" : ""}`}
-          onClick={() => t.id === "focus" ? onOpenFocus() : setView(t.id)}>
-          <span className="mtab-icon">{t.icon}</span>
-          <span className="mtab-label">{t.label}</span>
-          {t.count > 0 && <span className="mtab-pip">{t.count}</span>}
-        </button>
-      ))}
+      {tabs.map(t => {
+        const active = t.id === "focus" ? focusOpen : (view === t.id && !focusOpen);
+        return (
+          <button key={t.id} role="tab" aria-selected={active}
+            className={`mtab ${active ? "active" : ""}`}
+            onClick={() => onTabClick(t.id)}>
+            <span className="mtab-icon">{t.icon}</span>
+            <span className="mtab-label">{t.label}</span>
+            {t.count > 0 && <span className="mtab-pip">{t.count}</span>}
+          </button>
+        );
+      })}
     </nav>
   );
 }
@@ -1171,7 +1185,8 @@ function DayPanel({ dayKey, todos, addTask, toggleTask, deleteTask, quickMove, c
                 {list.map(t => (
                   <div key={t.id}
                     className={`task-row ${t.done ? "done" : ""} ${t._new ? "entering" : ""} ${draggingId === t.id ? "dragging" : ""}`}
-                    onMouseDown={e => { if (e.target.closest(".tickbox, .row-act, .task-label")) return; beginDrag(e, t, dayKey); }}>
+                    onMouseDown={e => { if (e.target.closest(".tickbox, .row-act, .task-label")) return; beginDrag(e, t, dayKey); }}
+                    onTouchStart={e => { if (e.target.closest(".tickbox, .row-act, .task-label")) return; beginDrag(e, t, dayKey); }}>
                     <Tickbox checked={t.done} onChange={() => toggleTask(dayKey, t.id)} />
                     <div className="task-body">
                       <div className="task-label">{t.text}</div>
