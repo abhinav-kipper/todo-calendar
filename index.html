@@ -1,143 +1,72 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en" data-direction="B">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>Todo Calendar</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><ellipse cx='50' cy='88' rx='22' ry='6' fill='%23b8d4f0' opacity='0.3'/><ellipse cx='50' cy='62' rx='28' ry='34' fill='%23d8eafc'/><ellipse cx='50' cy='60' rx='22' ry='28' fill='%23f0f7ff'/><circle cx='50' cy='28' r='22' fill='%23d8eafc'/><circle cx='42' cy='24' r='4' fill='%231a2030'/><circle cx='58' cy='24' r='4' fill='%231a2030'/><circle cx='43' cy='23' r='1.5' fill='white'/><circle cx='59' cy='23' r='1.5' fill='white'/><ellipse cx='50' cy='32' rx='5' ry='3.5' fill='%23ffb347'/><polygon points='50,30 45,34 55,34' fill='%23ff9500'/><ellipse cx='30' cy='58' rx='10' ry='5' fill='%23a8d0f0' transform='rotate(-15 30 58)'/><ellipse cx='70' cy='58' rx='10' ry='5' fill='%23a8d0f0' transform='rotate(15 70 58)'/><ellipse cx='38' cy='82' rx='7' ry='4' fill='%23ffb347' transform='rotate(-5 38 82)'/><ellipse cx='62' cy='82' rx='7' ry='4' fill='%23ffb347' transform='rotate(5 62 82)'/><rect x='44' y='45' rx='3' width='12' height='14' fill='%236ea8fe' opacity='0.6'/><rect x='44' y='45' rx='2' width='12' height='4' fill='%236ea8fe'/><rect x='46' y='51' width='3' height='3' rx='1' fill='%235cdb7f'/><rect x='51' y='51' width='3' height='3' rx='1' fill='%23b88cff' opacity='0.6'/></svg>">
-<meta name="description" content="A beautiful calendar-based todo app with cloud sync">
-<link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#6ea8fe">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="apple-touch-icon" href="icons/icon-192.svg">
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Almanac · A cute lil' todo calendar 🌱</title>
+
+<!-- PWA -->
+<link rel="manifest" href="manifest.json" />
+<meta name="theme-color" content="#FAF3F8" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="apple-mobile-web-app-title" content="Almanac" />
+<link rel="apple-touch-icon" href="icons/icon-192.svg" />
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='46' fill='%23FAF3F8' stroke='%233D2E5C' stroke-width='4'/%3E%3Ctext x='50' y='68' text-anchor='middle' font-size='52' font-family='serif'%3E✿%3C/text%3E%3C/svg%3E" />
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Caveat:wght@500;700&family=Geist+Mono:wght@400;500&display=swap" />
+
+<!-- New Memphis design CSS -->
+<link rel="stylesheet" href="almanac.css" />
+
+<style>
+  #confetti {
+    position: fixed; inset: 0;
+    width: 100vw; height: 100vh;
+    pointer-events: none;
+    z-index: 100;
+  }
+  @keyframes shrink {
+    from { transform: scaleX(1); }
+    to   { transform: scaleX(0); }
+  }
+</style>
+
+<!-- Firebase (same version as before — must load before store-bridge) -->
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
-<link rel="stylesheet" href="style.css">
 </head>
 <body>
+  <div id="root"></div>
+  <canvas id="confetti"></canvas>
 
-<canvas id="confetti"></canvas>
+  <!-- React 18 -->
+  <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
 
-<div class="header">
-  <div class="header-left">
-    <h1>Todo Calendar</h1>
-    <div class="sync-badge" id="syncBadge" aria-live="polite">Local</div>
-  </div>
-  <div class="header-right">
-    <div class="nav">
-      <button class="btn" onclick="app.changeMonth(-1)" aria-label="Previous">&#8592;</button>
-      <span class="month-label" id="monthLabel"></span>
-      <button class="btn" onclick="app.changeMonth(1)" aria-label="Next">&#8594;</button>
-      <button class="btn btn-today" onclick="app.goToday()">Today</button>
-    </div>
-    <button class="btn" id="viewMonthBtn" onclick="app.setView('month')">Month</button>
-    <button class="btn" id="viewWeekBtn" onclick="app.setView('week')">Week</button>
-    <button class="btn" id="viewYearBtn" onclick="app.setView('year')">Year</button>
-    <button class="btn" onclick="app.openFocusMode()" title="Today Focus Mode">Focus</button>
-    <button class="btn" id="inboxBtn" onclick="app.setView('inbox')">Inbox<span class="inbox-badge" id="inboxBadge" style="display:none">0</span></button>
-    <button class="icon-btn" onclick="app.toggleTheme()" id="themeBtn" aria-label="Toggle theme">&#9790;</button>
-  </div>
-</div>
+  <!-- Sound engine (plain JS, no modules) -->
+  <script src="js/almanac-sounds.js"></script>
 
-<div class="toolbar">
-  <div class="stat-item total"><span class="stat-num" id="statTotal">0</span> this month</div>
-  <div class="stat-item pending"><span class="stat-num" id="statPending">0</span> pending</div>
-  <div class="stat-item done"><span class="stat-num" id="statDone">0</span> done</div>
-  <div class="stat-item streak"><span class="flame-badge" id="flameBadge"><span class="flame-icon">🔥</span><span class="flame-count" id="statStreak">0</span></span><span class="flame-label">streak</span></div>
-  <div class="toolbar-right">
-    <button class="btn export-btn" onclick="app.exportData()">Export</button>
-    <label class="btn export-btn" style="cursor:pointer">Import<input type="file" accept=".json" onchange="app.importData(event)" style="display:none"></label>
-    <div class="auth-section" id="authSection">
-      <button class="auth-btn" onclick="app.signInWithGoogle()"><img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt=""> Sign in</button>
-    </div>
-  </div>
-</div>
+  <!-- Store bridge (ES module): imports store.js and exposes on window.AlmanacStore -->
+  <script type="module" src="js/store-bridge.js"></script>
 
-<div id="monthView">
-  <div class="weekdays"><span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span></div>
-  <div class="calendar-grid" id="calendarGrid"></div>
-</div>
-<div id="weekView" style="display:none"><div class="week-view" id="weekGrid"></div></div>
-<div id="inboxView" style="display:none"><div id="inboxContent"></div></div>
-<div id="yearView" style="display:none"><div id="yearGrid"></div></div>
+  <!-- React modules (JSX via Babel) — globals defined in order -->
+  <script type="text/babel" src="js/almanac-utils.jsx"></script>
+  <script type="text/babel" src="js/almanac-plant.jsx"></script>
+  <script type="text/babel" src="js/almanac-tweaks.jsx"></script>
+  <script type="text/babel" src="js/almanac-app.jsx"></script>
 
-<div id="carryForwardBanner"></div>
-
-<!-- Search -->
-<div class="search-overlay" id="searchOverlay" onclick="if(event.target===this)app.closeSearch()">
-  <div class="search-box">
-    <div class="search-input-row">
-      <span class="search-icon">&#128269;</span>
-      <input type="text" id="searchInput" placeholder="Search all todos..." oninput="app.performSearch(this.value)" onkeydown="if(event.key==='Escape')app.closeSearch()">
-    </div>
-    <div class="search-results" id="searchResults"><div class="search-empty">Type to search across all days</div></div>
-  </div>
-</div>
-
-<!-- Undo -->
-<div class="undo-toast" id="undoToast">
-  <span id="undoMsg">Todo deleted</span>
-  <button onclick="app.performUndo()">Undo</button>
-  <div class="undo-timer"><div class="undo-timer-fill" id="undoTimerFill"></div></div>
-</div>
-
-<!-- Shortcuts -->
-<div class="shortcuts-hint" id="shortcutsHint"><kbd>/</kbd> search <kbd>N</kbd> new <kbd>I</kbd> inbox <kbd>F</kbd> focus <kbd>?</kbd> help</div>
-
-<!-- Panel -->
-<div class="panel-overlay" id="panelOverlay" onclick="app.closePanel()"></div>
-<div class="panel" id="panel" style="display:none" role="dialog" aria-modal="true" aria-label="Day todos">
-  <div class="panel-header">
-    <div class="panel-header-top">
-      <div><h2 id="panelTitle">Tuesday</h2><div class="panel-header-sub" id="panelSub"></div></div>
-      <button class="panel-close" onclick="app.closePanel()" aria-label="Close panel">&#10005;</button>
-    </div>
-    <div id="progressSection"></div>
-  </div>
-  <div class="panel-body">
-    <div class="add-todo-form">
-      <div class="add-todo-input-row">
-        <input type="text" id="todoInput" placeholder="Add a task..." onkeydown="app.handleInputKey(event)" maxlength="500" aria-label="New task">
-        <button onclick="app.addTodo()">Add</button>
-      </div>
-      <div class="add-options">
-        <span>Priority:</span>
-        <button class="priority-btn low active" onclick="app.setPriority('low')">Low</button>
-        <button class="priority-btn medium" onclick="app.setPriority('medium')">Med</button>
-        <button class="priority-btn high" onclick="app.setPriority('high')">High</button>
-        <div class="options-divider"></div>
-        <span>Repeat:</span>
-        <button class="repeat-btn active" data-r="none" onclick="app.setRepeat('none')">None</button>
-        <button class="repeat-btn" data-r="daily" onclick="app.setRepeat('daily')">Daily</button>
-        <button class="repeat-btn" data-r="weekdays" onclick="app.setRepeat('weekdays')">Weekdays</button>
-        <button class="repeat-btn" data-r="weekly" onclick="app.setRepeat('weekly')">Weekly</button>
-      </div>
-    </div>
-    <div id="yesterdayCarryBanner"></div>
-    <div id="todoListContainer"></div>
-  </div>
-  <div class="panel-footer">
-    <div class="keyboard-hint"><kbd>Enter</kbd> add &middot; <kbd>Esc</kbd> close</div>
-    <div class="panel-nav"><button onclick="app.navDay(-1)" aria-label="Previous day">&#8592; Prev</button><button onclick="app.navDay(1)" aria-label="Next day">Next &#8594;</button></div>
-  </div>
-</div>
-
-<!-- Focus Mode -->
-<div class="focus-overlay" id="focusOverlay">
-  <div class="focus-header">
-    <h2 id="focusTitle">Today's Focus</h2>
-    <button class="focus-close" onclick="app.closeFocusMode()">Back to Calendar</button>
-  </div>
-  <div class="focus-content" id="focusContent"></div>
-</div>
-
-<script type="module" src="js/app.js"></script>
-<script>
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('sw.js');
-}
-</script>
+  <!-- PWA: register service worker -->
+  <script>
+    if ("serviceWorker" in navigator && location.protocol !== "blob:" && location.protocol !== "file:") {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("sw.js").catch(() => {});
+      });
+    }
+  </script>
 </body>
 </html>

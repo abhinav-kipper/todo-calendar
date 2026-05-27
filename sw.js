@@ -1,14 +1,16 @@
-const CACHE_NAME = 'todo-calendar-v1';
+const CACHE_NAME = 'almanac-v2';
 const APP_SHELL = [
   '/todo-calendar/',
   '/todo-calendar/index.html',
-  '/todo-calendar/style.css',
-  '/todo-calendar/js/app.js',
+  '/todo-calendar/almanac.css',
+  '/todo-calendar/js/store-bridge.js',
   '/todo-calendar/js/store.js',
   '/todo-calendar/js/utils.js',
-  '/todo-calendar/js/effects.js',
-  '/todo-calendar/js/search.js',
-  '/todo-calendar/js/shortcuts.js',
+  '/todo-calendar/js/almanac-sounds.js',
+  '/todo-calendar/js/almanac-utils.jsx',
+  '/todo-calendar/js/almanac-plant.jsx',
+  '/todo-calendar/js/almanac-tweaks.jsx',
+  '/todo-calendar/js/almanac-app.jsx',
   '/todo-calendar/manifest.json',
   '/todo-calendar/icons/icon-192.svg',
   '/todo-calendar/icons/icon-512.svg'

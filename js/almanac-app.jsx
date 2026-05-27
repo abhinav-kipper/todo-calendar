@@ -1,0 +1,1262 @@
+// Almanac – main React app, bridged to store.js for real data persistence
+// Adapted from the design prototype; all data ops go through window.AlmanacStore
+
+const { useState, useEffect, useRef, useMemo, useCallback } = React;
+const { DAYS, DAYS_FULL, MONTHS, dateKey, parseKey, sameDay, monthMatrix, quoteFor, moodFor, affirmationFor } = U;
+
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "direction": "B",
+  "density": "comfy",
+  "soundOn": true,
+  "volume": 0.4,
+  "showShortcuts": true,
+  "confetti": true,
+  "heatmap": false
+}/*EDITMODE-END*/;
+
+const PLANT_LINES = {
+  empty: ["nothing to do? naptime~", "give me a task to grow!", "i'm a seed waiting for purpose…"],
+  early: ["off to a good start!", "we got this!", "one down — more to come ✿"],
+  mid:   ["lookin' lush over here", "you're cruising!", "halfway, hero"],
+  late:  ["so close i can taste it", "almost there friend!", "one more and we BLOOM"],
+  done:  ["ALL DONE! you legend.", "petals everywhere 🌸", "we did it, today was a vibe"],
+};
+
+// ─── Drag ghost ───────────────────────────────────────────────────────────
+function useDragGhost() {
+  const [drag, setDrag] = useState(null);
+  useEffect(() => {
+    if (!drag) return;
+    const move = (e) => {
+      const x = e.clientX ?? (e.touches && e.touches[0].clientX);
+      const y = e.clientY ?? (e.touches && e.touches[0].clientY);
+      setDrag((d) => d ? { ...d, pos: { x, y } } : d);
+    };
+    window.addEventListener("mousemove", move);
+    window.addEventListener("touchmove", move);
+    return () => {
+      window.removeEventListener("mousemove", move);
+      window.removeEventListener("touchmove", move);
+    };
+  }, [drag?.task?.id]);
+  return [drag, setDrag];
+}
+
+// ─── Toast ────────────────────────────────────────────────────────────────
+function useToast() {
+  const [toast, setToast] = useState(null);
+  const timerRef = useRef(null);
+  const show = useCallback((msg, action) => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    setToast({ msg, action, open: true, t: Date.now() });
+    timerRef.current = setTimeout(() => setToast((t) => t ? { ...t, open: false } : null), 4000);
+    setTimeout(() => setToast(null), 4400);
+  }, []);
+  return [toast, show];
+}
+
+// ─── Main App ─────────────────────────────────────────────────────────────
+function App() {
+  const [tweaks, setTweak] = useTweaks(TWEAK_DEFAULTS);
+
+  const urlDir = useMemo(() => {
+    try {
+      const v = new URLSearchParams(window.location.search).get("dir");
+      return v === "A" || v === "B" ? v : null;
+    } catch { return null; }
+  }, []);
+  const direction = urlDir || tweaks.direction;
+  useEffect(() => {
+    document.documentElement.dataset.direction = direction;
+  }, [direction]);
+
+  useEffect(() => {
+    Sounds.setEnabled(tweaks.soundOn);
+    Sounds.setVolume(tweaks.volume);
+  }, [tweaks.soundOn, tweaks.volume]);
+
+  // ─── data (bridged from store.js) ───
+  const [todos, setTodos] = useState({});
+  const [inbox, setInbox] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState(null);
+  const [syncStatus, setSyncStatus] = useState('Local');
+  const syncEnabled = useRef(false);
+
+  // Init Firebase + auth on mount (wait for module bridge to be ready)
+  useEffect(() => {
+    const tryInit = () => {
+      const Bridge = window.AlmanacStore;
+      if (!Bridge) { setTimeout(tryInit, 30); return; }
+      Bridge.initFirebase();
+      Bridge.setOnStateChange(s => setSyncStatus(s));
+      Bridge.onAuthChange(async (u) => {
+        setUser(u);
+        syncEnabled.current = false; // disable sync while loading
+        const status = await Bridge.loadTodos();
+        setSyncStatus(status);
+        const { todos: t, inbox: ib } = Bridge.loadForReact();
+        setTodos(t);
+        setInbox(ib);
+        setLoading(false);
+        // enable sync AFTER data is loaded (small delay so React batches the state updates first)
+        setTimeout(() => { syncEnabled.current = true; }, 100);
+      });
+    };
+    tryInit();
+  }, []);
+
+  // Sync React state → store after every user-driven change
+  useEffect(() => {
+    if (!syncEnabled.current) return;
+    window.AlmanacStore.syncFromReact(todos, inbox);
+  }, [todos, inbox]);
+
+  const today = useMemo(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, []);
+
+  const [cursor, setCursor] = useState(() => new Date(today.getFullYear(), today.getMonth(), 1));
+  const [view, setView] = useState(() => window.innerWidth < 720 ? "today" : "month");
+  const [openDay, setOpenDay] = useState(null);
+  const [focusOpen, setFocusOpen] = useState(false);
+  const [draftPriority, setDraftPriority] = useState("low");
+  const [draftRepeat, setDraftRepeat] = useState("none");
+  const [draftText, setDraftText] = useState("");
+  const [inputFocused, setInputFocused] = useState(false);
+  const [toast, showToast] = useToast();
+  const [drag, setDrag] = useDragGhost();
+  const lastDeletedRef = useRef(null);
+  const inputRef = useRef(null);
+
+  const onSound = (name) => { if (Sounds[name]) Sounds[name](); };
+
+  // ─── Stats ───
+  const monthStats = useMemo(() => {
+    const y = cursor.getFullYear(), m = cursor.getMonth();
+    let total = 0, done = 0;
+    Object.entries(todos).forEach(([k, list]) => {
+      const d = parseKey(k);
+      if (d.getFullYear() === y && d.getMonth() === m) {
+        total += list.length;
+        done += list.filter(t => t.done).length;
+      }
+    });
+    return { total, done, pending: total - done };
+  }, [todos, cursor]);
+
+  // ─── Streak ───
+  const streak = useMemo(() => {
+    let n = 0;
+    const d = new Date(today);
+    while (true) {
+      const k = dateKey(d);
+      const list = todos[k];
+      if (!list || list.length === 0) break;
+      if (list.some(t => !t.done)) break;
+      n++;
+      d.setDate(d.getDate() - 1);
+      if (n > 60) break;
+    }
+    return n;
+  }, [todos, today]);
+
+  // ─── Task ops ───
+  const newId = () => 't' + Math.random().toString(36).slice(2, 9);
+
+  const addTask = (key, text, opts = {}) => {
+    if (!text.trim()) return;
+    onSound("add");
+    const repeat = opts.repeat || 'none';
+    if (repeat !== 'none') {
+      // Recurring: delegate to store, then reload
+      window.AlmanacStore.addRecurring(key, text, opts.priority || 'low', repeat);
+      const { todos: newT } = window.AlmanacStore.loadForReact();
+      setTodos(() => newT);
+      return;
+    }
+    const base = {
+      id: newId(),
+      text: text.trim(),
+      priority: opts.priority || 'low',
+      repeat: 'none',
+      done: false,
+      notes: '',
+      createdAt: Date.now(),
+      _new: true,
+      _isRecurring: false,
+    };
+    setTodos(cur => ({ ...cur, [key]: [...(cur[key] || []), base] }));
+  };
+
+  const addToInbox = (text) => {
+    if (!text.trim()) return;
+    onSound("add");
+    setInbox(cur => [...cur, {
+      id: newId(), text: text.trim(), priority: 'low', repeat: 'none',
+      done: false, notes: '', createdAt: Date.now(), _new: true, _isRecurring: false,
+    }]);
+  };
+
+  const toggleTask = (key, id) => {
+    setTodos(cur => {
+      const list = cur[key] || [];
+      const target = list.find(t => t.id === id);
+      if (!target) return cur;
+      const willBeDone = !target.done;
+      if (target._isRecurring) {
+        // Sync recurring toggle directly to store
+        const newDone = window.AlmanacStore.toggleRecurring(key, target._recurringId);
+        if (newDone) onSound("check"); else onSound("uncheck");
+        return { ...cur, [key]: list.map(t => t.id === id ? { ...t, done: newDone } : t) };
+      }
+      if (willBeDone) onSound("check"); else onSound("uncheck");
+      const next = list.map(t => t.id === id ? { ...t, done: willBeDone, _new: false } : t);
+      const remaining = next.filter(t => !t.done).length;
+      if (willBeDone && remaining === 0 && next.length >= 2) {
+        setTimeout(() => { onSound("chime"); if (tweaks.confetti) burstConfetti(); }, 250);
+      }
+      return { ...cur, [key]: next };
+    });
+  };
+
+  const toggleInbox = (id) => {
+    setInbox(cur => cur.map(t => {
+      if (t.id !== id) return t;
+      const willBeDone = !t.done;
+      if (willBeDone) onSound("check"); else onSound("uncheck");
+      return { ...t, done: willBeDone };
+    }));
+  };
+
+  const deleteTask = (key, id) => {
+    setTodos(cur => {
+      const list = cur[key] || [];
+      const task = list.find(t => t.id === id);
+      if (!task) return cur;
+      if (task._isRecurring) {
+        // Delete all occurrences
+        window.AlmanacStore.deleteRecurring(task._recurringId);
+        const next = { ...cur };
+        Object.keys(next).forEach(k => {
+          next[k] = next[k].filter(t => !t._isRecurring || t._recurringId !== task._recurringId);
+          if (next[k].length === 0) delete next[k];
+        });
+        onSound("del");
+        showToast(`Recurring "${task.text.slice(0, 24)}…" removed`, null);
+        return next;
+      }
+      lastDeletedRef.current = { key, task, list };
+      showToast(`"${task.text.slice(0, 30)}${task.text.length > 30 ? '…' : ''}" deleted`, 'undo');
+      onSound("del");
+      return { ...cur, [key]: list.filter(t => t.id !== id) };
+    });
+  };
+
+  const deleteInbox = (id) => {
+    setInbox(cur => {
+      const task = cur.find(t => t.id === id);
+      if (!task) return cur;
+      lastDeletedRef.current = { inbox: true, task, list: cur };
+      showToast(`"${task.text.slice(0, 30)}" deleted`, 'undo');
+      onSound("del");
+      return cur.filter(t => t.id !== id);
+    });
+  };
+
+  const undoDelete = () => {
+    const r = lastDeletedRef.current;
+    if (!r) return;
+    if (r.inbox) setInbox(r.list);
+    else setTodos(cur => ({ ...cur, [r.key]: r.list }));
+    lastDeletedRef.current = null;
+    showToast("Restored", null);
+  };
+
+  // ─── Move / drag ───
+  const moveTask = (task, fromKey, toKey) => {
+    if (fromKey === toKey) return;
+    onSound("drop");
+    setTodos(cur => {
+      const next = { ...cur };
+      if (fromKey === "__inbox") {
+        setInbox(ib => ib.filter(t => t.id !== task.id));
+      } else {
+        next[fromKey] = (next[fromKey] || []).filter(t => t.id !== task.id);
+        if (next[fromKey].length === 0) delete next[fromKey];
+      }
+      if (toKey === "__inbox") {
+        setInbox(ib => [...ib, { ...task, _new: true }]);
+      } else {
+        next[toKey] = [...(next[toKey] || []), { ...task, _new: true }];
+      }
+      return next;
+    });
+  };
+
+  const quickMove = (task, fromKey, delta) => {
+    if (delta === "__inbox") {
+      moveTask(task, fromKey, "__inbox");
+      showToast(`Moved "${task.text.slice(0, 24)}…" to Inbox ✿`);
+      return;
+    }
+    const d = parseKey(fromKey);
+    d.setDate(d.getDate() + delta);
+    const toKey = dateKey(d);
+    moveTask(task, fromKey, toKey);
+    const tmw = new Date(today); tmw.setDate(tmw.getDate() + 1);
+    const label = sameDay(d, today) ? "Today"
+               : sameDay(d, tmw) ? "Tomorrow"
+               : `${DAYS_FULL[d.getDay()]}, ${MONTHS[d.getMonth()].slice(0, 3)} ${d.getDate()}`;
+    showToast(`Moved to ${label} ✿`);
+  };
+
+  const beginDrag = (e, task, sourceKey, clickFallback) => {
+    const x0 = e.clientX ?? (e.touches && e.touches[0].clientX);
+    const y0 = e.clientY ?? (e.touches && e.touches[0].clientY);
+    let dragging = false;
+    const onMove = (ev) => {
+      const x = ev.clientX ?? (ev.touches && ev.touches[0].clientX);
+      const y = ev.clientY ?? (ev.touches && ev.touches[0].clientY);
+      if (!dragging && (Math.abs(x - x0) > 6 || Math.abs(y - y0) > 6)) {
+        dragging = true;
+        onSound("pickup");
+        setDrag({ task, sourceKey, pos: { x, y } });
+      }
+    };
+    const onUp = (ev) => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("touchmove", onMove);
+      window.removeEventListener("mouseup", onUp);
+      window.removeEventListener("touchend", onUp);
+      if (!dragging) { if (clickFallback) clickFallback(); return; }
+      const ex = ev.clientX ?? (ev.changedTouches && ev.changedTouches[0].clientX);
+      const ey = ev.clientY ?? (ev.changedTouches && ev.changedTouches[0].clientY);
+      const targetEl = document.elementFromPoint(ex, ey);
+      const dropEl = targetEl && targetEl.closest("[data-drop]");
+      const dropKey = dropEl ? dropEl.getAttribute("data-drop") : null;
+      if (dropKey) moveTask(task, sourceKey, dropKey);
+      setDrag(null);
+      document.querySelectorAll(".drag-over").forEach(el => el.classList.remove("drag-over"));
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("touchmove", onMove);
+    window.addEventListener("mouseup", onUp);
+    window.addEventListener("touchend", onUp);
+  };
+
+  // ─── Navigation ───
+  const goPrev = () => setCursor(d => new Date(d.getFullYear(), d.getMonth() - 1, 1));
+  const goNext = () => setCursor(d => new Date(d.getFullYear(), d.getMonth() + 1, 1));
+  const goToday = () => { setCursor(new Date(today.getFullYear(), today.getMonth(), 1)); setView("month"); };
+
+  // ─── Keyboard shortcuts ───
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
+      if (e.key === "Escape") {
+        if (focusOpen) setFocusOpen(false);
+        else if (openDay) { setOpenDay(null); onSound("close"); }
+      } else if (e.key.toLowerCase() === "n") {
+        setOpenDay(dateKey(today)); onSound("open");
+        setTimeout(() => inputRef.current && inputRef.current.focus(), 280);
+      } else if (e.key.toLowerCase() === "i") { setView("inbox"); }
+      else if (e.key.toLowerCase() === "f") { setFocusOpen(true); }
+      else if (e.key.toLowerCase() === "m") { setView("month"); }
+      else if (e.key.toLowerCase() === "w") { setView("week"); }
+      else if (e.key.toLowerCase() === "q") {
+        e.preventDefault();
+        if (quickAddRef.current) quickAddRef.current.focus();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [openDay, focusOpen, today]);
+
+  const openDayPanel = (key) => { setOpenDay(key); onSound("open"); };
+  const closeDayPanel = () => { setOpenDay(null); onSound("close"); };
+
+  // ─── Quick add ───
+  const quickAddRef = useRef(null);
+  const quickAdd = (text) => {
+    const parsed = U.parseQuickAdd(text, today);
+    if (!parsed || !parsed.text) return false;
+    addTask(parsed.dateKey, parsed.text, { priority: parsed.priority });
+    const d = parsed.date;
+    const tmw = new Date(today); tmw.setDate(tmw.getDate() + 1);
+    const dayLabel = sameDay(d, today) ? "Today"
+                   : sameDay(d, tmw) ? "Tomorrow"
+                   : `${DAYS_FULL[d.getDay()]}, ${MONTHS[d.getMonth()].slice(0, 3)} ${d.getDate()}`;
+    showToast(`Added to ${dayLabel} ✿`);
+    return true;
+  };
+
+  // ─── Today progress (plant + mood) ───
+  const todayList = todos[dateKey(today)] || [];
+  const todayDone = todayList.filter(t => t.done).length;
+  const todayTotal = todayList.length;
+  const todayProgress = todayTotal ? todayDone / todayTotal : 0;
+  const todayMood = moodFor(todayProgress, todayTotal);
+  const affirmation = affirmationFor(today);
+
+  // ─── Plant click ───
+  const [plantMessage, setPlantMessage] = useState(null);
+  const plantMsgTimer = useRef(null);
+  const onPlantClick = () => {
+    const pool = todayTotal === 0 ? PLANT_LINES.empty
+               : todayProgress >= 1 ? PLANT_LINES.done
+               : todayProgress >= 0.66 ? PLANT_LINES.late
+               : todayProgress >= 0.33 ? PLANT_LINES.mid
+               : PLANT_LINES.early;
+    const msg = pool[Math.floor(Math.random() * pool.length)];
+    if (plantMsgTimer.current) clearTimeout(plantMsgTimer.current);
+    setPlantMessage(msg);
+    onSound("pickup");
+    plantMsgTimer.current = setTimeout(() => setPlantMessage(null), 3000);
+  };
+
+  // ─── Export / Import ───
+  const handleExport = () => window.AlmanacStore.exportData();
+  const handleImport = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const ok = window.AlmanacStore.importData(ev.target.result);
+      if (ok) {
+        const { todos: t, inbox: ib } = window.AlmanacStore.loadForReact();
+        setTodos(t); setInbox(ib);
+        showToast("Data imported ✿");
+      } else {
+        showToast("Import failed — invalid file");
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', fontFamily: 'var(--body)', color: 'var(--ink)', fontSize: 18, gap: 12 }}>
+        <span style={{ animation: 'spin 1s linear infinite', display: 'inline-block' }}>✿</span>
+        Loading your almanac…
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    );
+  }
+
+  const cells = monthMatrix(cursor.getFullYear(), cursor.getMonth());
+  const inboxCount = inbox.filter(t => !t.done).length;
+
+  return (
+    <div className="app" data-density={tweaks.density}>
+      <TopBar
+        cursor={cursor} view={view} setView={setView}
+        onPrev={goPrev} onNext={goNext} onToday={goToday}
+        onOpenInbox={() => setView("inbox")}
+        onOpenFocus={() => setFocusOpen(true)}
+        onToggleDirection={() => setTweak("direction", direction === "A" ? "B" : "A")}
+        direction={direction}
+        inboxCount={inboxCount}
+        user={user}
+        syncStatus={syncStatus}
+        onSignIn={() => window.AlmanacStore.signInWithGoogle()}
+        onSignOut={() => window.AlmanacStore.signOut()}
+        onExport={handleExport}
+        onImport={handleImport}
+      />
+      <QuickAddBar onAdd={quickAdd} inputRef={quickAddRef} today={today} />
+      <VibeStrip mood={todayMood} affirmation={affirmation} stats={monthStats} streak={streak} />
+
+      <div className={`main-layout ${view === "month" ? "with-rail" : ""} ${view === "today" ? "today-only" : ""}`}>
+        <div className="main">
+          {view === "month" && (
+            <MonthView
+              cells={cells} cursor={cursor} today={today} todos={todos}
+              openDayPanel={openDayPanel}
+              beginDrag={beginDrag}
+              draggingId={drag?.task?.id}
+              toggleTask={toggleTask}
+              addTask={addTask}
+              heatmap={tweaks.heatmap}
+            />
+          )}
+          {view === "week" && (
+            <WeekView
+              today={today} todos={todos}
+              toggleTask={toggleTask}
+              openDayPanel={openDayPanel}
+              beginDrag={beginDrag}
+              draggingId={drag?.task?.id}
+            />
+          )}
+          {view === "inbox" && (
+            <InboxView
+              inbox={inbox}
+              addToInbox={addToInbox}
+              toggleInbox={toggleInbox}
+              deleteInbox={deleteInbox}
+              beginDrag={beginDrag}
+              draggingId={drag?.task?.id}
+            />
+          )}
+          {view === "today" && (
+            <div className="today-view-inner">
+              <TodayPanel
+                today={today} todos={todos}
+                toggleTask={toggleTask} addTask={addTask} deleteTask={deleteTask}
+                quickMove={quickMove} beginDrag={beginDrag} draggingId={drag?.task?.id}
+                expanded
+              />
+              <PlantSide
+                progress={todayProgress} done={todayDone} total={todayTotal}
+                direction={direction} monthStats={monthStats}
+                message={plantMessage} onPlantClick={onPlantClick}
+              />
+            </div>
+          )}
+        </div>
+        {view === "month" && (
+          <aside className="today-rail">
+            <TodayPanel
+              today={today} todos={todos}
+              toggleTask={toggleTask} addTask={addTask} deleteTask={deleteTask}
+              quickMove={quickMove} beginDrag={beginDrag} draggingId={drag?.task?.id}
+            />
+            <PlantSide
+              progress={todayProgress} done={todayDone} total={todayTotal}
+              direction={direction} monthStats={monthStats}
+              message={plantMessage} onPlantClick={onPlantClick}
+            />
+          </aside>
+        )}
+      </div>
+
+      <DayPanel
+        dayKey={openDay} todos={todos}
+        addTask={addTask} toggleTask={toggleTask} deleteTask={deleteTask}
+        quickMove={quickMove} close={closeDayPanel}
+        navDay={(delta) => {
+          if (!openDay) return;
+          const d = parseKey(openDay);
+          d.setDate(d.getDate() + delta);
+          setOpenDay(dateKey(d));
+        }}
+        draftPriority={draftPriority} setDraftPriority={setDraftPriority}
+        draftRepeat={draftRepeat} setDraftRepeat={setDraftRepeat}
+        draftText={draftText} setDraftText={setDraftText}
+        inputFocused={inputFocused} setInputFocused={setInputFocused}
+        inputRef={inputRef}
+        beginDrag={beginDrag} draggingId={drag?.task?.id}
+        today={today}
+      />
+
+      <FocusOverlay
+        open={focusOpen} close={() => setFocusOpen(false)}
+        today={today} todos={todos} toggleTask={toggleTask}
+      />
+
+      {drag && drag.pos && (
+        <div className="drag-ghost" style={{ left: drag.pos.x, top: drag.pos.y }}>
+          {drag.task.text}
+        </div>
+      )}
+
+      {toast && (
+        <div className={`toast ${toast.open ? "open" : ""}`}>
+          <span>{toast.msg}</span>
+          {toast.action === "undo" && <button onClick={undoDelete}>Undo</button>}
+          <div className="toast-bar" style={{ animation: toast.open ? "shrink 4s linear forwards" : "none" }} />
+        </div>
+      )}
+
+      {tweaks.showShortcuts && !openDay && !focusOpen && (
+        <div className="shortcuts">
+          <span><kbd>Q</kbd> quick-add</span>
+          <span><kbd>N</kbd> new</span>
+          <span><kbd>I</kbd> inbox</span>
+          <span><kbd>F</kbd> focus</span>
+          <span><kbd>M</kbd> month</span>
+          <span><kbd>W</kbd> week</span>
+        </div>
+      )}
+
+      <MobileTabBar
+        view={view} setView={setView}
+        inboxCount={inboxCount}
+        todayPending={todayTotal - todayDone}
+        onOpenFocus={() => setFocusOpen(true)}
+      />
+
+      <TweaksPanel title="Tweaks">
+        <TweakSection label="Direction" />
+        <TweakRadio
+          label="Vibe" value={direction}
+          options={[
+            { value: "A", label: "A · Sticker Book" },
+            { value: "B", label: "B · Memphis Mall" },
+          ]}
+          onChange={(v) => setTweak("direction", v)}
+        />
+        <TweakRadio
+          label="Density" value={tweaks.density}
+          options={[{ value: "comfy", label: "Comfy" }, { value: "compact", label: "Compact" }]}
+          onChange={(v) => setTweak("density", v)}
+        />
+        <TweakSection label="Fun stuff" />
+        <TweakToggle label="Confetti on full day" value={tweaks.confetti} onChange={(v) => setTweak("confetti", v)} />
+        <TweakToggle label="Heatmap month view" value={tweaks.heatmap} onChange={(v) => setTweak("heatmap", v)} />
+        <TweakSection label="Sound" />
+        <TweakToggle label="Effects" value={tweaks.soundOn} onChange={(v) => { setTweak("soundOn", v); if (v) { Sounds.resume(); Sounds.check(); } }} />
+        <TweakSlider label="Volume" value={Math.round(tweaks.volume * 100)} min={0} max={100} step={5} unit="%" onChange={(v) => setTweak("volume", v / 100)} />
+        <TweakSection label="Help" />
+        <TweakToggle label="Show shortcut bar" value={tweaks.showShortcuts} onChange={(v) => setTweak("showShortcuts", v)} />
+      </TweaksPanel>
+    </div>
+  );
+}
+
+// ─── Confetti ─────────────────────────────────────────────────────────────
+function burstConfetti() {
+  const canvas = document.getElementById("confetti");
+  if (!canvas) return;
+  const ctx = canvas.getContext("2d");
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  const colors = ["#3D2E5C", "#C8B6E2", "#F4B6C7", "#F7E1A0", "#B5DDC6"];
+  const accent = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim();
+  if (accent) colors[1] = accent;
+  const N = 60, cx = window.innerWidth / 2, cy = window.innerHeight * 0.4;
+  const bits = Array.from({ length: N }, () => ({
+    x: cx, y: cy,
+    vx: (Math.random() - 0.5) * 14,
+    vy: -Math.random() * 14 - 4,
+    rot: Math.random() * Math.PI * 2,
+    vr: (Math.random() - 0.5) * 0.3,
+    w: 6 + Math.random() * 6, h: 2 + Math.random() * 2,
+    color: colors[Math.floor(Math.random() * colors.length)], life: 1,
+  }));
+  let raf;
+  const step = () => {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    let alive = false;
+    bits.forEach(b => {
+      if (b.life <= 0) return; alive = true;
+      b.x += b.vx; b.y += b.vy; b.vy += 0.45; b.vx *= 0.99;
+      b.rot += b.vr; b.life -= 0.012;
+      ctx.save(); ctx.translate(b.x, b.y); ctx.rotate(b.rot);
+      ctx.globalAlpha = Math.max(0, b.life); ctx.fillStyle = b.color;
+      ctx.fillRect(-b.w / 2, -b.h / 2, b.w, b.h); ctx.restore();
+    });
+    if (alive) raf = requestAnimationFrame(step);
+    else ctx.clearRect(0, 0, canvas.width, canvas.height);
+  };
+  step();
+}
+
+// ─── TopBar ───────────────────────────────────────────────────────────────
+function TopBar({ cursor, view, setView, onPrev, onNext, onToday, onOpenInbox, onOpenFocus, onToggleDirection, direction, inboxCount, user, syncStatus, onSignIn, onSignOut, onExport, onImport }) {
+  const subtitles = { A: "a sticker book of days", B: "calendar but make it 90s" };
+  return (
+    <header className="topbar">
+      <div className="brand">
+        <span className="brand-mark" />
+        <div>
+          <div className="brand-title">Almanac</div>
+          <div className="brand-sub">~ {subtitles[direction]} ~</div>
+        </div>
+      </div>
+      <div className="topbar-mid">
+        <div className="month-nav">
+          <button onClick={onPrev} aria-label="Previous month"><Icon.Chevron dir="left" /></button>
+          <div className="month-display">
+            {MONTHS[cursor.getMonth()]} <span className="year">{cursor.getFullYear()}</span>
+          </div>
+          <button onClick={onNext} aria-label="Next month"><Icon.Chevron dir="right" /></button>
+          <button className="today-btn" onClick={onToday}>Today</button>
+        </div>
+        <div className="view-switch">
+          <button className={view === "month" ? "active" : ""} onClick={() => setView("month")}>Month</button>
+          <button className={view === "week" ? "active" : ""} onClick={() => setView("week")}>Week</button>
+        </div>
+      </div>
+      <div className="topbar-right">
+        <span className="sync-pill" title={syncStatus}>{syncStatus}</span>
+        {user ? (
+          <div className="user-chip">
+            {user.photoURL && <img src={user.photoURL} alt="" className="user-avatar" />}
+            <span className="user-name">{user.displayName || user.email}</span>
+            <button className="ghost-btn small" onClick={onSignOut} title="Sign out">↩</button>
+          </div>
+        ) : (
+          <button className="sign-in-btn" onClick={onSignIn}>
+            <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="" style={{width:16,height:16}} />
+            Sign in
+          </button>
+        )}
+        <button className="iconbtn" onClick={onExport} title="Export data">↓</button>
+        <label className="iconbtn" title="Import data" style={{cursor:'pointer'}}>
+          ↑<input type="file" accept=".json" onChange={onImport} style={{display:'none'}} />
+        </label>
+        <button className="iconbtn" onClick={onOpenFocus} title="Focus (F)"><Icon.Focus /></button>
+        <button className="iconbtn" onClick={onOpenInbox} title="Inbox (I)">
+          <Icon.Inbox />
+          {inboxCount > 0 && <span className="pip inbox-pip">{inboxCount}</span>}
+        </button>
+        <button className="iconbtn" onClick={onToggleDirection} title={`Switch to direction ${direction === "A" ? "B" : "A"}`} style={{ fontFamily: "var(--display)", fontSize: 16 }}>
+          {direction}
+        </button>
+      </div>
+    </header>
+  );
+}
+
+// ─── QuickAddBar ──────────────────────────────────────────────────────────
+function QuickAddBar({ onAdd, inputRef, today }) {
+  const [text, setText] = useState("");
+  const submit = () => { if (!text.trim()) return; const ok = onAdd(text); if (ok) setText(""); };
+  const preview = useMemo(() => text.trim() ? U.parseQuickAdd(text, today) : null, [text, today]);
+  const prevLabel = preview && preview.text ? (() => {
+    const d = preview.date;
+    const tmw = new Date(today); tmw.setDate(tmw.getDate() + 1);
+    if (sameDay(d, today)) return "Today";
+    if (sameDay(d, tmw)) return "Tomorrow";
+    return `${DAYS_FULL[d.getDay()].slice(0, 3)}, ${MONTHS[d.getMonth()].slice(0, 3)} ${d.getDate()}`;
+  })() : null;
+  return (
+    <div className="quickadd-wrap">
+      <div className="quickadd">
+        <span className="quickadd-icon">✦</span>
+        <input
+          ref={inputRef} type="text" value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") submit(); else if (e.key === "Escape") { setText(""); e.target.blur(); } }}
+          placeholder='quick-add… try "buy milk tomorrow" or "yoga mon !!!"'
+        />
+        <button onClick={submit} disabled={!text.trim()}>Add ↵</button>
+        <div className="quickadd-hint"><kbd>Q</kbd> to focus</div>
+      </div>
+      {preview && preview.text && (
+        <div className="quickadd-preview">
+          <span className="qa-arrow">→</span>
+          <span className={`qa-chip p-${preview.priority}`}>{preview.text}</span>
+          <span className="qa-where">{prevLabel}</span>
+          {preview.priority !== "low" && <span className="qa-prio">{preview.priority}</span>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── MobileTabBar ─────────────────────────────────────────────────────────
+function MobileTabBar({ view, setView, inboxCount, todayPending, onOpenFocus }) {
+  const tabs = [
+    { id: "today", label: "Today", icon: "☀", count: todayPending },
+    { id: "month", label: "Cal", icon: "▦" },
+    { id: "inbox", label: "Inbox", icon: "✉", count: inboxCount },
+    { id: "focus", label: "Focus", icon: "◉" },
+  ];
+  return (
+    <nav className="mobile-tabs" role="tablist">
+      {tabs.map(t => (
+        <button key={t.id} role="tab" aria-selected={view === t.id}
+          className={`mtab ${view === t.id ? "active" : ""}`}
+          onClick={() => t.id === "focus" ? onOpenFocus() : setView(t.id)}>
+          <span className="mtab-icon">{t.icon}</span>
+          <span className="mtab-label">{t.label}</span>
+          {t.count > 0 && <span className="mtab-pip">{t.count}</span>}
+        </button>
+      ))}
+    </nav>
+  );
+}
+
+// ─── VibeStrip ────────────────────────────────────────────────────────────
+function VibeStrip({ mood, affirmation, stats, streak }) {
+  const moodSubs = {
+    sleepy: "a fresh slate ✨", warming: "easing in, no rush", cruising: "a lil' rhythm going",
+    "fired-up": "absolutely cooking", soaring: "nearly there, friend", bloom: "every box ticked 🌸",
+  };
+  return (
+    <div className="vibe-strip">
+      <div className="mood-card">
+        <div className="mood-icon">{mood.icon}</div>
+        <div className="mood-text">
+          <div className="mood-label">today's vibe: {mood.label}</div>
+          <div className="mood-sub">{moodSubs[mood.id]}</div>
+        </div>
+      </div>
+      <div className="affirm-card"><div className="affirm-text">{affirmation}</div></div>
+      <div className="stats-card">
+        <div className="stat"><b>{stats.done}</b><span>done</span></div>
+        <div className="v-divide" />
+        <div className="stat"><b>{stats.pending}</b><span>to-do</span></div>
+        <div className="v-divide" />
+        <div className="stat">
+          <b>{streak}🔥</b><span>day streak</span>
+          <div className="streak-dots">
+            {Array.from({ length: 7 }).map((_, i) => <i key={i} className={i < Math.min(streak, 7) ? "on" : ""} />)}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── PlantSide ────────────────────────────────────────────────────────────
+function PlantSide({ progress, done, total, direction, monthStats, message, onPlantClick }) {
+  const monthPct = monthStats.total ? Math.round((monthStats.done / monthStats.total) * 100) : 0;
+  return (
+    <aside className="plant-side">
+      <div className="plant-side-title">Sprout</div>
+      <div className="plant-side-sub">your lil todo plant</div>
+      <div className="plant-clickable" onClick={onPlantClick}>
+        <PlantMascot progress={progress} total={total} done={done} direction={direction} />
+        {message && <div className="plant-bubble">{message}</div>}
+      </div>
+      <div className="plant-progress">
+        <div className="plant-progress-label"><span>This month</span><span>{monthPct}%</span></div>
+        <div className="plant-progress-bar"><div className="plant-progress-fill" style={{ width: `${monthPct}%` }} /></div>
+      </div>
+    </aside>
+  );
+}
+
+// ─── TodayPanel ───────────────────────────────────────────────────────────
+function TodayPanel({ today, todos, toggleTask, addTask, deleteTask, quickMove, beginDrag, draggingId }) {
+  const key = dateKey(today);
+  const list = U.sortTasks(todos[key] || []);
+  const done = list.filter(t => t.done).length;
+  const total = list.length;
+  const pct = total ? (done / total) * 100 : 0;
+  const [draft, setDraft] = useState("");
+  const inputRef = useRef(null);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!ref.current) return;
+    const el = ref.current;
+    const over = () => el.classList.add("drag-over");
+    const leave = () => el.classList.remove("drag-over");
+    el.addEventListener("mouseover", over);
+    el.addEventListener("mouseleave", leave);
+    return () => { el.removeEventListener("mouseover", over); el.removeEventListener("mouseleave", leave); };
+  }, []);
+
+  const submit = () => {
+    if (!draft.trim()) return;
+    addTask(key, draft);
+    setDraft("");
+    setTimeout(() => inputRef.current && inputRef.current.focus(), 10);
+  };
+
+  return (
+    <div className="today-card" ref={ref} data-drop={key}>
+      <div className="today-card-head">
+        <div className="today-label-row">
+          <span className="today-label">Today</span>
+          <span className="today-date-pill">{DAYS_FULL[today.getDay()].slice(0, 3)} · {today.getDate()} {MONTHS[today.getMonth()].slice(0, 3)}</span>
+        </div>
+        {total > 0 && (
+          <div className="today-progress-row">
+            <div className="progress-bar"><div className="progress-fill" style={{ width: pct + "%" }} /></div>
+            <div className="today-progress-text">{done}/{total}</div>
+          </div>
+        )}
+      </div>
+      <div className="today-list">
+        {total === 0 && (
+          <div className="today-empty">
+            <span className="today-empty-em">a clear slate</span>
+            <span className="today-empty-sub">capture something below ↓</span>
+          </div>
+        )}
+        {list.map(t => (
+          <div key={t.id}
+            className={`today-row p-${t.priority} ${t.done ? "done" : ""} ${draggingId === t.id ? "dragging" : ""} ${t._new ? "entering" : ""}`}
+            onMouseDown={(e) => { if (e.target.closest(".tickbox, button")) return; beginDrag(e, t, key, () => {}); }}
+            onTouchStart={(e) => { if (e.target.closest(".tickbox, button")) return; beginDrag(e, t, key, () => {}); }}
+          >
+            <Tickbox checked={t.done} onChange={() => toggleTask(key, t.id)} />
+            <div className="today-text">
+              <div className="today-task-label">{t.text}</div>
+              {(t.priority !== "low" || t.repeat !== "none") && (
+                <div className="today-task-meta">
+                  {t.priority !== "low" && <span className={`tag p-${t.priority}`}>{t.priority}</span>}
+                  {t.repeat !== "none" && <span className="tag">↻ {t.repeat}</span>}
+                </div>
+              )}
+            </div>
+            <div className="today-row-acts">
+              <button onClick={() => quickMove(t, key, 1)} title="Tomorrow">+1d</button>
+              <button className="danger" onClick={() => deleteTask(key, t.id)}>×</button>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="today-add">
+        <input ref={inputRef} value={draft} onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") submit(); }}
+          placeholder="add to today…" />
+        <button onClick={submit} disabled={!draft.trim()}>+</button>
+      </div>
+    </div>
+  );
+}
+
+// ─── MonthView ────────────────────────────────────────────────────────────
+function MonthView({ cells, cursor, today, todos, openDayPanel, beginDrag, draggingId, toggleTask, addTask, heatmap }) {
+  let maxPending = 1;
+  if (heatmap) {
+    cells.forEach(d => {
+      const p = (todos[dateKey(d)] || []).filter(t => !t.done).length;
+      if (p > maxPending) maxPending = p;
+    });
+  }
+  return (
+    <>
+      <div className="weekday-row">{DAYS.map(d => <span key={d}>{d}</span>)}</div>
+      <div className={`month-grid ${heatmap ? "heatmap" : ""}`}>
+        {cells.map((d, i) => {
+          const key = dateKey(d);
+          const list = todos[key] || [];
+          const pending = list.filter(t => !t.done);
+          const heatLevel = heatmap && pending.length > 0 ? Math.min(5, Math.ceil((pending.length / maxPending) * 5)) : 0;
+          return (
+            <DayCell key={i}
+              dateKey={key} date={d}
+              muted={d.getMonth() !== cursor.getMonth()}
+              isToday={sameDay(d, today)}
+              weekend={d.getDay() === 0 || d.getDay() === 6}
+              list={list}
+              visible={U.sortTasks(list).slice(0, 3)}
+              pending={pending.length}
+              completed={list.length > 0 && pending.length === 0}
+              onOpen={() => openDayPanel(key)}
+              beginDrag={beginDrag} draggingId={draggingId}
+              toggleTask={toggleTask} addTask={addTask}
+              heatmap={heatmap} heatLevel={heatLevel}
+            />
+          );
+        })}
+      </div>
+    </>
+  );
+}
+
+function DayCell({ dateKey: key, date, muted, isToday, weekend, list, visible, pending, completed, onOpen, beginDrag, draggingId, toggleTask, addTask, heatmap, heatLevel }) {
+  const ref = useRef(null);
+  const inputRef = useRef(null);
+  const [adding, setAdding] = useState(false);
+  const [draft, setDraft] = useState("");
+
+  useEffect(() => {
+    if (!ref.current) return;
+    const el = ref.current;
+    const over = () => el.classList.add("drag-over");
+    const leave = () => el.classList.remove("drag-over");
+    el.addEventListener("mouseover", over);
+    el.addEventListener("mouseleave", leave);
+    return () => { el.removeEventListener("mouseover", over); el.removeEventListener("mouseleave", leave); };
+  }, []);
+  useEffect(() => { if (adding && inputRef.current) inputRef.current.focus(); }, [adding]);
+
+  const startAdd = (e) => { e.stopPropagation(); setAdding(true); };
+  const submitAdd = () => {
+    if (draft.trim()) { addTask(key, draft); setDraft(""); } else setAdding(false);
+  };
+
+  return (
+    <div ref={ref}
+      className={`day ${muted ? "muted" : ""} ${isToday ? "today" : ""} ${weekend ? "weekend" : ""} ${completed ? "completed" : ""} ${heatmap ? "heat" : ""} ${heatLevel ? "heat-" + heatLevel : ""}`}
+      onClick={() => { if (!adding) onOpen(); }} data-drop={key}>
+      <div className="day-num-wrap">
+        <span className="day-num">{date.getDate()}</span>
+        <span className="day-num-right">
+          {completed && <span className="day-stamp" title="All done!">✦</span>}
+          {!completed && list.length > 0 && <span className="day-dot">{pending}</span>}
+          {!completed && (
+            <button className="day-add" onClick={startAdd} onMouseDown={e => e.stopPropagation()} aria-label="Add task">
+              <Icon.Plus />
+            </button>
+          )}
+        </span>
+      </div>
+      <div className="day-tasks">
+        {visible.map(t => (
+          <div key={t.id}
+            className={`task-chip p-${t.priority} ${t.done ? "done" : ""} ${t.repeat !== "none" ? "recur" : ""} ${draggingId === t.id ? "dragging" : ""}`}
+            onMouseDown={e => { e.stopPropagation(); beginDrag(e, t, key, () => toggleTask(key, t.id)); }}
+            onTouchStart={e => { e.stopPropagation(); beginDrag(e, t, key, () => toggleTask(key, t.id)); }}
+            onClick={e => e.stopPropagation()} title={t.text}>
+            {t.done && <span className="chip-check">✓</span>}
+            <span>{t.text}</span>
+          </div>
+        ))}
+        {list.length > 3 && <div className="day-more">+{list.length - 3} more</div>}
+        {adding && (
+          <input ref={inputRef} className="day-quickadd" value={draft} placeholder="task…"
+            onChange={e => setDraft(e.target.value)}
+            onClick={e => e.stopPropagation()} onMouseDown={e => e.stopPropagation()}
+            onKeyDown={e => { e.stopPropagation(); if (e.key === "Enter") submitAdd(); else if (e.key === "Escape") { setAdding(false); setDraft(""); } }}
+            onBlur={() => { setAdding(false); setDraft(""); }} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── WeekView ─────────────────────────────────────────────────────────────
+function WeekView({ today, todos, toggleTask, openDayPanel, beginDrag, draggingId }) {
+  const start = U.startOfWeek(today);
+  const days = Array.from({ length: 7 }, (_, i) => { const d = new Date(start); d.setDate(start.getDate() + i); return d; });
+  return (
+    <div className="week-grid">
+      {days.map(d => {
+        const key = dateKey(d);
+        return (
+          <WeekCol key={key} d={d} dKey={key} list={todos[key] || []} isToday={sameDay(d, today)}
+            toggleTask={toggleTask} openDayPanel={openDayPanel} beginDrag={beginDrag} draggingId={draggingId} />
+        );
+      })}
+    </div>
+  );
+}
+
+function WeekCol({ d, dKey, list, isToday, toggleTask, openDayPanel, beginDrag, draggingId }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!ref.current) return;
+    const el = ref.current;
+    const over = () => el.classList.add("drag-over");
+    const leave = () => el.classList.remove("drag-over");
+    el.addEventListener("mouseover", over);
+    el.addEventListener("mouseleave", leave);
+    return () => { el.removeEventListener("mouseover", over); el.removeEventListener("mouseleave", leave); };
+  }, []);
+  return (
+    <div ref={ref} className={`week-col ${isToday ? "today" : ""}`} data-drop={dKey}>
+      <div className="week-col-head">
+        <div>
+          <div className="week-col-day">{DAYS[d.getDay()]}</div>
+          <div className="week-col-num">{d.getDate()}</div>
+        </div>
+        {list.length > 0 && <div className="day-dot">{list.filter(t => !t.done).length} left</div>}
+      </div>
+      {list.map(t => (
+        <div key={t.id} className={`week-task ${t.done ? "done" : ""} ${draggingId === t.id ? "dragging" : ""}`}
+          onMouseDown={e => beginDrag(e, t, dKey)} onTouchStart={e => beginDrag(e, t, dKey)}>
+          <Tickbox checked={t.done} onChange={() => toggleTask(dKey, t.id)} />
+          <div style={{ flex: 1 }}>
+            <div className="week-task-label">{t.text}</div>
+            <div className="week-task-meta">
+              <span style={{ color: t.priority === "high" ? "var(--danger)" : t.priority === "medium" ? "var(--warn)" : "var(--ink-4)" }}>{t.priority}</span>
+              {t.repeat !== "none" && <span>· {t.repeat}</span>}
+            </div>
+          </div>
+        </div>
+      ))}
+      <button className="week-add" onClick={() => openDayPanel(dKey)}>+ Add to {DAYS[d.getDay()]}</button>
+    </div>
+  );
+}
+
+// ─── InboxView ────────────────────────────────────────────────────────────
+function InboxView({ inbox, addToInbox, toggleInbox, deleteInbox, beginDrag, draggingId }) {
+  const [text, setText] = useState("");
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!ref.current) return;
+    const el = ref.current;
+    const over = () => el.classList.add("drag-over");
+    const leave = () => el.classList.remove("drag-over");
+    el.addEventListener("mouseover", over);
+    el.addEventListener("mouseleave", leave);
+    return () => { el.removeEventListener("mouseover", over); el.removeEventListener("mouseleave", leave); };
+  }, []);
+  return (
+    <div className="inbox-view" ref={ref} data-drop="__inbox">
+      <h1 className="inbox-title">Inbox</h1>
+      <div className="inbox-sub">Loose tasks · drag onto a day to schedule</div>
+      <div className="inbox-add">
+        <input placeholder="Capture a thought…" value={text} onChange={e => setText(e.target.value)}
+          onKeyDown={e => { if (e.key === "Enter") { addToInbox(text); setText(""); } }} />
+        <button onClick={() => { addToInbox(text); setText(""); }}>Add</button>
+      </div>
+      <div className="inbox-list">
+        {inbox.map(t => (
+          <div key={t.id} className={`inbox-item ${t.done ? "done" : ""} ${draggingId === t.id ? "dragging" : ""}`}
+            onMouseDown={e => beginDrag(e, t, "__inbox")} onTouchStart={e => beginDrag(e, t, "__inbox")}>
+            <Tickbox checked={t.done} onChange={() => toggleInbox(t.id)} />
+            <div className="inbox-item-text">{t.text}</div>
+            <button className="danger small" onClick={() => deleteInbox(t.id)} title="Delete">×</button>
+            <span className="inbox-grab">⠿ drag</span>
+          </div>
+        ))}
+        {inbox.length === 0 && (
+          <div className="empty">
+            <div className="empty-illust">All caught up.</div>
+            <div className="empty-sub">— nothing in the inbox —</div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── DayPanel ─────────────────────────────────────────────────────────────
+function DayPanel({ dayKey, todos, addTask, toggleTask, deleteTask, quickMove, close, navDay, draftPriority, setDraftPriority, draftRepeat, setDraftRepeat, draftText, setDraftText, inputFocused, setInputFocused, inputRef, beginDrag, draggingId, today }) {
+  const open = !!dayKey;
+  const date = dayKey ? parseKey(dayKey) : null;
+  const rawList = (dayKey && todos[dayKey]) || [];
+  const list = U.sortTasks(rawList);
+  const done = list.filter(t => t.done).length;
+  const total = list.length;
+  const pct = total ? (done / total) * 100 : 0;
+
+  const submit = () => {
+    if (!draftText.trim()) return;
+    addTask(dayKey, draftText, { priority: draftPriority, repeat: draftRepeat });
+    setDraftText("");
+    setTimeout(() => inputRef.current && inputRef.current.focus(), 30);
+  };
+
+  return (
+    <>
+      <div className={`panel-overlay ${open ? "open" : ""}`} onClick={close} />
+      <div className={`panel ${open ? "open" : ""}`}>
+        {date && (
+          <>
+            <div className="panel-head">
+              <div className="panel-head-top">
+                <div>
+                  <div className="panel-date-day">
+                    {DAYS_FULL[date.getDay()]} · {MONTHS[date.getMonth()]} {date.getFullYear()}
+                    {sameDay(date, today) && <span style={{ marginLeft: 8, color: "var(--accent)" }}>· Today</span>}
+                  </div>
+                  <div className="panel-date">{date.getDate()} <span>{MONTHS[date.getMonth()].slice(0, 3)}</span></div>
+                </div>
+                <button className="panel-close" onClick={close} aria-label="Close"><Icon.Close /></button>
+              </div>
+              <div className="progress-row">
+                <div className="progress-bar"><div className="progress-fill" style={{ width: `${pct}%` }} /></div>
+                <div className="progress-text">{done} / {total}</div>
+              </div>
+            </div>
+            <div className="panel-body">
+              <div className={`add-task ${inputFocused ? "focused" : ""}`}>
+                <div className="add-task-input">
+                  <input ref={inputRef} type="text" placeholder="Add a task…" value={draftText}
+                    onChange={e => setDraftText(e.target.value)}
+                    onKeyDown={e => { if (e.key === "Enter") submit(); }}
+                    onFocus={() => setInputFocused(true)} onBlur={() => setInputFocused(false)} />
+                  <button className="add-task-btn" onClick={submit} disabled={!draftText.trim()}>Add</button>
+                </div>
+                <div className="add-task-opts">
+                  <span className="opt-label">Priority</span>
+                  {["low", "medium", "high"].map(p => (
+                    <button key={p} className={`opt-chip p-${p} ${draftPriority === p ? "active" : ""}`} onClick={() => setDraftPriority(p)}>
+                      {p[0].toUpperCase() + p.slice(1)}
+                    </button>
+                  ))}
+                  <span className="opt-divider" />
+                  <span className="opt-label">Repeat</span>
+                  {[["none", "None"], ["daily", "Daily"], ["weekdays", "Weekdays"], ["weekly", "Weekly"]].map(([r, label]) => (
+                    <button key={r} className={`opt-chip ${draftRepeat === r ? "active" : ""}`} onClick={() => setDraftRepeat(r)}>{label}</button>
+                  ))}
+                </div>
+              </div>
+              <div className="task-list">
+                {list.map(t => (
+                  <div key={t.id}
+                    className={`task-row ${t.done ? "done" : ""} ${t._new ? "entering" : ""} ${draggingId === t.id ? "dragging" : ""}`}
+                    onMouseDown={e => { if (e.target.closest(".tickbox, .row-act, .task-label")) return; beginDrag(e, t, dayKey); }}>
+                    <Tickbox checked={t.done} onChange={() => toggleTask(dayKey, t.id)} />
+                    <div className="task-body">
+                      <div className="task-label">{t.text}</div>
+                      <div className="task-meta">
+                        <span className={`tag p-${t.priority}`}>{t.priority}</span>
+                        {t.repeat !== "none" && <span className="tag">↻ {t.repeat}</span>}
+                      </div>
+                    </div>
+                    <div className="row-actions">
+                      <button className="row-act" onClick={() => quickMove(t, dayKey, 1)}>+1d</button>
+                      <button className="row-act" onClick={() => quickMove(t, dayKey, 7)}>+7d</button>
+                      <button className="row-act" onClick={() => quickMove(t, dayKey, "__inbox")}>↩</button>
+                      <button className="row-act danger" onClick={() => deleteTask(dayKey, t.id)}><Icon.Trash /></button>
+                    </div>
+                  </div>
+                ))}
+                {list.length === 0 && (
+                  <div className="empty">
+                    <div className="empty-illust">A clear day.</div>
+                    <div className="empty-sub">— nothing scheduled —</div>
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="panel-foot">
+              <div className="kb-hint"><kbd>Enter</kbd> add &middot; <kbd>Esc</kbd> close</div>
+              <div className="nav-buttons">
+                <button className="ghost-btn" onClick={() => navDay(-1)}>← Prev</button>
+                <button className="ghost-btn" onClick={() => navDay(1)}>Next →</button>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    </>
+  );
+}
+
+// ─── FocusOverlay ─────────────────────────────────────────────────────────
+function FocusOverlay({ open, close, today, todos, toggleTask }) {
+  const key = dateKey(today);
+  const list = todos[key] || [];
+  const done = list.filter(t => t.done).length;
+  const total = list.length;
+  const pct = total ? (done / total) * 100 : 0;
+  return (
+    <div className={`focus ${open ? "open" : ""}`}>
+      <div className="focus-head">
+        <div className="focus-eye">
+          <div className="focus-day-num">{today.getDate()}</div>
+          <div className="focus-day-meta">
+            <div className="focus-day-name">{DAYS_FULL[today.getDay()]} · {MONTHS[today.getMonth()]}</div>
+            <div className="focus-quote">{quoteFor(today)}</div>
+          </div>
+        </div>
+        <button className="ghost-btn" onClick={close}>← Back to calendar</button>
+      </div>
+      <div className="focus-body">
+        <div className="focus-progress">
+          <div className="progress-bar"><div className="progress-fill" style={{ width: `${pct}%` }} /></div>
+          <div className="progress-text">{done} of {total} done</div>
+        </div>
+        {list.map(t => (
+          <div key={t.id} className={`focus-task ${t.done ? "done" : ""}`}>
+            <Tickbox checked={t.done} onChange={() => toggleTask(key, t.id)} size={22} />
+            <div style={{ flex: 1 }}>
+              <div className="focus-task-label">{t.text}</div>
+              <div className="focus-task-meta">{t.priority}{t.repeat !== "none" ? ` · ${t.repeat}` : ""}</div>
+            </div>
+          </div>
+        ))}
+        {list.length === 0 && (
+          <div className="empty" style={{ paddingTop: 80 }}>
+            <div className="empty-illust">Nothing planned for today.</div>
+            <div className="empty-sub">— add tasks from the month view —</div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Mount ────────────────────────────────────────────────────────────────
+const root = ReactDOM.createRoot(document.getElementById("root"));
+root.render(<App />);
+
+const wake = () => { Sounds.resume(); window.removeEventListener("pointerdown", wake); };
+window.addEventListener("pointerdown", wake);
