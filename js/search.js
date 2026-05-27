@@ -64,7 +64,7 @@ export function performSearch(query) {
     const dateTxt = m.key === 'inbox' ? 'Inbox' : new Date(m.key + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     const onClick = m.key === 'inbox'
       ? `window._searchSetView('inbox');window._searchCloseSearch();`
-      : `window._searchOpenDay('${m.key}');window._searchCloseSearch();`;
+      : `window._searchSetView('month');window._searchOpenDay('${m.key}');window._searchCloseSearch();`;
     return `<div class="search-result-item" onclick="${onClick}"><span class="sr-text ${m.done ? 'sr-done' : ''}">${highlighted}</span><span class="sr-date">${dateTxt}</span></div>`;
   }).join('') + (matches.length > 20 ? `<div class="search-empty">+${matches.length - 20} more results</div>` : '');
 }
