@@ -671,12 +671,12 @@ function TopBar({ cursor, view, setView, onPrev, onNext, onToday, onOpenInbox, o
       </div>
       <div className="topbar-mid">
         <div className="month-nav">
-          <button onClick={onPrev} aria-label="Previous month"><Icon.Chevron dir="left" /></button>
+          <button onClick={onPrev} data-tip="Previous month (←)" aria-label="Previous month"><Icon.Chevron dir="left" /></button>
           <div className="month-display">
             {MONTHS[cursor.getMonth()]} <span className="year">{cursor.getFullYear()}</span>
           </div>
-          <button onClick={onNext} aria-label="Next month"><Icon.Chevron dir="right" /></button>
-          <button className="today-btn" onClick={onToday}>Today</button>
+          <button onClick={onNext} data-tip="Next month (→)" aria-label="Next month"><Icon.Chevron dir="right" /></button>
+          <button className="today-btn" onClick={onToday} data-tip="Jump back to today's month">Today</button>
         </div>
         <div className="view-switch">
           <button className={view === "month" ? "active" : ""} onClick={() => setView("month")}>Month</button>
@@ -684,29 +684,29 @@ function TopBar({ cursor, view, setView, onPrev, onNext, onToday, onOpenInbox, o
         </div>
       </div>
       <div className="topbar-right">
-        <span className="sync-pill" title={syncStatus}>{syncStatus}</span>
+        <span className="sync-pill" data-tip={syncStatus === "Local" ? "Saved on this device · sign in to sync" : "Synced to your Google account"} aria-label={syncStatus}>{syncStatus}</span>
         {user ? (
           <div className="user-chip">
             {user.photoURL && <img src={user.photoURL} alt="" className="user-avatar" />}
             <span className="user-name">{user.displayName || user.email}</span>
-            <button className="ghost-btn small" onClick={onSignOut} title="Sign out">↩</button>
+            <button className="ghost-btn small" onClick={onSignOut} data-tip="Sign out" aria-label="Sign out">↩</button>
           </div>
         ) : (
-          <button className="sign-in-btn" onClick={onSignIn}>
+          <button className="sign-in-btn" onClick={onSignIn} data-tip="Sign in with Google to sync across devices">
             <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="" style={{width:16,height:16}} />
             Sign in
           </button>
         )}
-        <button className="iconbtn" onClick={onExport} title="Export data">↓</button>
-        <label className="iconbtn" title="Import data" style={{cursor:'pointer'}}>
+        <button className="iconbtn" onClick={onExport} data-tip="Download backup (.json)" aria-label="Export data">↓</button>
+        <label className="iconbtn" data-tip="Restore from backup (.json)" aria-label="Import data" style={{cursor:'pointer'}}>
           ↑<input type="file" accept=".json" onChange={onImport} style={{display:'none'}} />
         </label>
-        <button className="iconbtn" onClick={onOpenFocus} title="Focus (F)"><Icon.Focus /></button>
-        <button className="iconbtn" onClick={onOpenInbox} title="Inbox (I)">
+        <button className="iconbtn" onClick={onOpenFocus} data-tip="Focus mode · just today (F)" aria-label="Focus mode"><Icon.Focus /></button>
+        <button className="iconbtn" onClick={onOpenInbox} data-tip="Inbox · unscheduled tasks (I)" aria-label="Inbox">
           <Icon.Inbox />
           {inboxCount > 0 && <span className="pip inbox-pip">{inboxCount}</span>}
         </button>
-        <button className="iconbtn" onClick={onToggleDirection} title={`Switch to direction ${direction === "A" ? "B" : "A"}`} style={{ fontFamily: "var(--display)", fontSize: 16 }}>
+        <button className="iconbtn" onClick={onToggleDirection} data-tip={`Switch vibe → ${direction === "A" ? "Memphis Mall" : "Sticker Book"}`} aria-label="Switch design vibe" style={{ fontFamily: "var(--display)", fontSize: 16 }}>
           {direction}
         </button>
       </div>
@@ -794,20 +794,20 @@ function VibeStrip({ mood, affirmation, stats, streak }) {
   };
   return (
     <div className="vibe-strip">
-      <div className="mood-card">
+      <div className="mood-card" data-tip="Mood changes with how much you finish today" data-tip-pos="top">
         <div className="mood-icon">{mood.icon}</div>
         <div className="mood-text">
           <div className="mood-label">today's vibe: {mood.label}</div>
           <div className="mood-sub">{moodSubs[mood.id]}</div>
         </div>
       </div>
-      <div className="affirm-card"><div className="affirm-text">{affirmation}</div></div>
+      <div className="affirm-card" data-tip="A new affirmation each day ✿" data-tip-pos="top"><div className="affirm-text">{affirmation}</div></div>
       <div className="stats-card">
-        <div className="stat"><b>{stats.done}</b><span>done</span></div>
+        <div className="stat" data-tip="Tasks completed this month" data-tip-pos="top"><b>{stats.done}</b><span>done</span></div>
         <div className="v-divide" />
-        <div className="stat"><b>{stats.pending}</b><span>to-do</span></div>
+        <div className="stat" data-tip="Tasks remaining this month" data-tip-pos="top"><b>{stats.pending}</b><span>to-do</span></div>
         <div className="v-divide" />
-        <div className="stat">
+        <div className="stat" data-tip="Consecutive days where every task was finished" data-tip-pos="top">
           <b>{streak}🔥</b><span>day streak</span>
           <div className="streak-dots">
             {Array.from({ length: 7 }).map((_, i) => <i key={i} className={i < Math.min(streak, 7) ? "on" : ""} />)}

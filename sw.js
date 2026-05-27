@@ -1,4 +1,4 @@
-const CACHE_NAME = 'almanac-v4';
+const CACHE_NAME = 'almanac-v5';
 const APP_SHELL = [
   '/todo-calendar/',
   '/todo-calendar/index.html',
