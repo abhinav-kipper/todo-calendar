@@ -80,7 +80,7 @@ const parseQuickAdd = (raw, today) => {
   const prioMatch = text.match(/\s(!{1,3})\s*$/) || text.match(/^(!{1,3})\s/);
   if (prioMatch) {
     const bangs = prioMatch[1].length;
-    priority = bangs >= 3 ? "high" : bangs === 2 ? "medium" : "high";
+    priority = bangs >= 3 ? "high" : bangs === 2 ? "medium" : "low";
     text = text.replace(prioMatch[0], " ").trim();
   }
 
