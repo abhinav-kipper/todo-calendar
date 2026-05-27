@@ -56,16 +56,20 @@ function setView(v) {
   document.getElementById('monthView').style.display = v === 'month' ? 'block' : 'none';
   document.getElementById('weekView').style.display = v === 'week' ? 'block' : 'none';
   document.getElementById('inboxView').style.display = v === 'inbox' ? 'block' : 'none';
+  document.getElementById('yearView').style.display = v === 'year' ? 'block' : 'none';
   document.getElementById('viewMonthBtn').classList.toggle('btn-active', v === 'month');
   document.getElementById('viewWeekBtn').classList.toggle('btn-active', v === 'week');
   document.getElementById('inboxBtn').classList.toggle('btn-active', v === 'inbox');
+  document.getElementById('viewYearBtn').classList.toggle('btn-active', v === 'year');
   if (v === 'inbox') renderInboxView();
+  else if (v === 'year') renderYearView();
   else render();
 }
 
 function render() {
   if (currentView === 'month') renderCalendar();
   else if (currentView === 'week') renderWeekView();
+  else if (currentView === 'year') renderYearView();
   updateStats();
 }
 
@@ -75,7 +79,10 @@ function updateStats() {
   document.getElementById('statTotal').textContent = total;
   document.getElementById('statPending').textContent = pending;
   document.getElementById('statDone').textContent = done;
-  document.getElementById('statStreak').textContent = calculateStreak(store.getTodosForDay);
+  const streakVal = calculateStreak(store.getTodosForDay);
+  document.getElementById('statStreak').textContent = streakVal;
+  const flameBadge = document.getElementById('flameBadge');
+  if (flameBadge) flameBadge.classList.toggle('flame-active', streakVal > 0);
   updateInboxBadge();
 }
 
@@ -156,6 +163,99 @@ function renderWeekView() {
     html += `</div><input class="week-add-input" placeholder="+ Add" onkeydown="app.weekQuickAdd(event,'${key}')" aria-label="Add todo"></div>`;
   }
   grid.innerHTML = html;
+}
+
+// --- Year Heatmap View ---
+function renderYearView() {
+  const grid = document.getElementById('yearGrid');
+  const year = currentDate.getFullYear();
+  document.getElementById('monthLabel').textContent = String(year);
+
+  const jan1 = new Date(year, 0, 1);
+  const totalDays = Math.round((new Date(year, 11, 31) - jan1) / 86400000) + 1;
+  const startDow = jan1.getDay();
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+  const dayStats = [];
+  for (let i = 0; i < totalDays; i++) {
+    const d = new Date(year, 0, 1 + i);
+    const key = dateKey(d);
+    const todos = store.getTodosForDay(key);
+    dayStats.push({ key, total: todos.length, done: todos.filter(t => t.done).length, date: d });
+  }
+
+  function getLevel(total, done) {
+    if (total === 0) return 0;
+    const pct = done / total;
+    if (pct === 1) return 4;
+    if (pct >= 0.8) return 3;
+    if (pct >= 0.5) return 2;
+    return 1;
+  }
+
+  const totalCols = Math.ceil((startDow + totalDays) / 7);
+
+  let monthLabels = '';
+  for (let m = 0; m < 12; m++) {
+    const col = Math.floor((startDow + Math.round((new Date(year, m, 1) - jan1) / 86400000)) / 7);
+    monthLabels += `<div class="hm-month-label" style="grid-column:${col + 2}">${MONTHS[m]}</div>`;
+  }
+
+  let dowLabels = '';
+  ['', 'Mon', '', 'Wed', '', 'Fri', ''].forEach((label, row) => {
+    dowLabels += `<div class="hm-dow-label" style="grid-row:${row + 2}">${label}</div>`;
+  });
+
+  let cells = '';
+  for (let i = 0; i < totalDays; i++) {
+    const { key, total, done, date } = dayStats[i];
+    const level = getLevel(total, done);
+    const col = Math.floor((startDow + i) / 7) + 2;
+    const row = ((startDow + i) % 7) + 2;
+    const isToday = date.toDateString() === today.toDateString();
+    const isFuture = date > today;
+    const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    cells += `<div class="hm-cell hm-level-${level}${isToday ? ' hm-cell-today' : ''}${isFuture ? ' hm-cell-future' : ''}" `
+           + `style="grid-column:${col};grid-row:${row}" `
+           + `data-key="${key}" data-total="${total}" data-done="${done}" data-date="${dateStr}" `
+           + `onclick="app.heatmapCellClick('${key}')" `
+           + `onmouseenter="app.heatmapShowTooltip(event,this)" onmouseleave="app.heatmapHideTooltip()"></div>`;
+  }
+
+  grid.innerHTML = `<div class="hm-grid" style="--hm-cols:${totalCols + 1}">${monthLabels}${dowLabels}${cells}</div>`;
+
+  if (!document.getElementById('heatmapTooltip')) {
+    const tip = document.createElement('div');
+    tip.id = 'heatmapTooltip'; tip.className = 'hm-tooltip';
+    document.body.appendChild(tip);
+  }
+}
+
+// --- Parallax Calendar ---
+function initParallax() {
+  if (window.matchMedia('(pointer: coarse)').matches) return;
+  const container = document.getElementById('monthView');
+  if (!container) return;
+  let rafId = null;
+  container.addEventListener('mousemove', e => {
+    if (rafId) return;
+    rafId = requestAnimationFrame(() => {
+      rafId = null;
+      const grid = document.getElementById('calendarGrid');
+      if (!grid) return;
+      const rect = container.getBoundingClientRect();
+      const normX = ((e.clientX - rect.left) / rect.width - 0.5) * 2;
+      const normY = ((e.clientY - rect.top) / rect.height - 0.5) * 2;
+      grid.style.setProperty('--parallax-x', `${normX * 3}px`);
+      grid.style.setProperty('--parallax-y', `${normY * 2}px`);
+    });
+  });
+  container.addEventListener('mouseleave', () => {
+    if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+    const grid = document.getElementById('calendarGrid');
+    if (grid) { grid.style.setProperty('--parallax-x', '0px'); grid.style.setProperty('--parallax-y', '0px'); }
+  });
 }
 
 // --- Panel ---
@@ -317,7 +417,7 @@ window.app = {
   signOut: () => store.signOut(),
 
   // Navigation
-  changeMonth(delta) { if (currentView === 'week') currentDate.setDate(currentDate.getDate() + delta * 7); else currentDate.setMonth(currentDate.getMonth() + delta); render(); },
+  changeMonth(delta) { if (currentView === 'week') currentDate.setDate(currentDate.getDate() + delta * 7); else if (currentView === 'year') currentDate.setFullYear(currentDate.getFullYear() + delta); else currentDate.setMonth(currentDate.getMonth() + delta); render(); },
   goToday() { currentDate = new Date(); render(); },
   setView,
   openDay,
@@ -434,6 +534,29 @@ window.app = {
 
   // Search
   openSearch, closeSearch, performSearch,
+
+  // Year heatmap
+  heatmapCellClick(key) {
+    currentDate = new Date(key + 'T12:00:00');
+    setView('month');
+    openDay(key);
+  },
+  heatmapShowTooltip(e, cell) {
+    const tip = document.getElementById('heatmapTooltip');
+    if (!tip) return;
+    const total = parseInt(cell.dataset.total), done = parseInt(cell.dataset.done);
+    tip.textContent = total === 0 ? `${cell.dataset.date} — no tasks` : `${cell.dataset.date} — ${done}/${total} done`;
+    tip.style.display = 'block';
+    const rect = cell.getBoundingClientRect();
+    const left = Math.max(8, Math.min(rect.left + rect.width / 2, window.innerWidth - 140));
+    tip.style.left = left + 'px';
+    tip.style.top = (rect.top + window.scrollY - 38) + 'px';
+    tip.style.transform = 'translateX(-50%)';
+  },
+  heatmapHideTooltip() {
+    const tip = document.getElementById('heatmapTooltip');
+    if (tip) tip.style.display = 'none';
+  },
 };
 
 // Quick-add (inline on double-click)
@@ -459,6 +582,7 @@ function init() {
   store.setOnStateChange(showSyncStatus);
   initSearch(openDay, setView);
   initShortcuts({ openSearch, openDay, setView, openFocusMode, closePanel, closeFocusMode, closeSearch, navDay, dateKey });
+  initParallax();
 
   store.onAuthChange(async user => {
     updateAuthUI(user);

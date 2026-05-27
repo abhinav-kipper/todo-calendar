@@ -34,6 +34,7 @@
     </div>
     <button class="btn" id="viewMonthBtn" onclick="app.setView('month')">Month</button>
     <button class="btn" id="viewWeekBtn" onclick="app.setView('week')">Week</button>
+    <button class="btn" id="viewYearBtn" onclick="app.setView('year')">Year</button>
     <button class="btn" onclick="app.openFocusMode()" title="Today Focus Mode">Focus</button>
     <button class="btn" id="inboxBtn" onclick="app.setView('inbox')">Inbox<span class="inbox-badge" id="inboxBadge" style="display:none">0</span></button>
     <button class="icon-btn" onclick="app.toggleTheme()" id="themeBtn" aria-label="Toggle theme">&#9790;</button>
@@ -44,7 +45,7 @@
   <div class="stat-item total"><span class="stat-num" id="statTotal">0</span> this month</div>
   <div class="stat-item pending"><span class="stat-num" id="statPending">0</span> pending</div>
   <div class="stat-item done"><span class="stat-num" id="statDone">0</span> done</div>
-  <div class="stat-item streak"><span class="stat-num" id="statStreak">0</span> streak</div>
+  <div class="stat-item streak"><span class="flame-badge" id="flameBadge"><span class="flame-icon">🔥</span><span class="flame-count" id="statStreak">0</span></span><span class="flame-label">streak</span></div>
   <div class="toolbar-right">
     <button class="btn export-btn" onclick="app.exportData()">Export</button>
     <label class="btn export-btn" style="cursor:pointer">Import<input type="file" accept=".json" onchange="app.importData(event)" style="display:none"></label>
@@ -60,6 +61,7 @@
 </div>
 <div id="weekView" style="display:none"><div class="week-view" id="weekGrid"></div></div>
 <div id="inboxView" style="display:none"><div id="inboxContent"></div></div>
+<div id="yearView" style="display:none"><div id="yearGrid"></div></div>
 
 <div id="carryForwardBanner"></div>
 
