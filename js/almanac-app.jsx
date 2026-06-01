@@ -141,6 +141,7 @@ function App() {
   const [view, setView] = useState(() => window.innerWidth < 720 ? "today" : "month");
   const [openDay, setOpenDay] = useState(null);
   const [focusOpen, setFocusOpen] = useState(false);
+  const [pinHelperOpen, setPinHelperOpen] = useState(false);
   const [draftPriority, setDraftPriority] = useState("low");
   const [draftRepeat, setDraftRepeat] = useState("none");
   const [draftText, setDraftText] = useState("");
@@ -514,6 +515,7 @@ function App() {
         onPrev={goPrev} onNext={goNext} onToday={goToday}
         onOpenInbox={() => setView("inbox")}
         onOpenFocus={() => setFocusOpen(true)}
+        onOpenPinHelper={() => setPinHelperOpen(true)}
         onToggleDirection={() => setTweak("direction", direction === "A" ? "B" : "A")}
         direction={direction}
         inboxCount={inboxCount}
@@ -613,6 +615,10 @@ function App() {
       <FocusOverlay
         open={focusOpen} close={() => setFocusOpen(false)}
         today={today} todos={todos} toggleTask={toggleTask}
+      />
+
+      <PinWidgetModal
+        open={pinHelperOpen} close={() => setPinHelperOpen(false)}
       />
 
       {drag && drag.pos && (
@@ -716,7 +722,7 @@ function burstConfetti() {
 }
 
 // ─── TopBar ───────────────────────────────────────────────────────────────
-function TopBar({ cursor, view, setView, onPrev, onNext, onToday, onOpenInbox, onOpenFocus, onToggleDirection, direction, inboxCount, user, syncStatus, onSignIn, onSignOut, onExport, onImport }) {
+function TopBar({ cursor, view, setView, onPrev, onNext, onToday, onOpenInbox, onOpenFocus, onOpenPinHelper, onToggleDirection, direction, inboxCount, user, syncStatus, onSignIn, onSignOut, onExport, onImport }) {
   const subtitles = { A: "a sticker book of days", B: "calendar but make it 90s" };
   return (
     <header className="topbar">
@@ -764,7 +770,7 @@ function TopBar({ cursor, view, setView, onPrev, onNext, onToday, onOpenInbox, o
           <Icon.Inbox />
           {inboxCount > 0 && <span className="pip inbox-pip">{inboxCount}</span>}
         </button>
-        <a className="iconbtn" href="?widget=1" target="_blank" rel="noopener noreferrer" data-tip="Open today as a pinnable widget" aria-label="Today widget" style={{ textDecoration: "none", color: "var(--ink)", fontFamily: "var(--display)", fontSize: 16 }}>◱</a>
+        <button className="iconbtn" onClick={onOpenPinHelper} data-tip="Pin today as a dock widget" aria-label="Pin as widget" style={{ fontFamily: "var(--display)", fontSize: 16 }}>◱</button>
         <button className="iconbtn" onClick={onToggleDirection} data-tip={`Switch vibe → ${direction === "A" ? "Memphis Mall" : "Sticker Book"}`} aria-label="Switch design vibe" style={{ fontFamily: "var(--display)", fontSize: 16 }}>
           {direction}
         </button>
@@ -1323,6 +1329,75 @@ function FocusOverlay({ open, close, today, todos, toggleTask }) {
             <div className="empty-sub">— add tasks from the month view —</div>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ─── PinWidgetModal ───────────────────────────────────────────────────────
+function PinWidgetModal({ open, close }) {
+  const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e) => { if (e.key === "Escape") close(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, close]);
+  if (!open) return null;
+  const url = window.location.origin + window.location.pathname + "?widget=1";
+  const copy = () => {
+    navigator.clipboard.writeText(url).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  };
+  const preview = () => {
+    window.open(url, "almanac-widget-preview", "width=380,height=620,resizable=yes,scrollbars=no");
+  };
+  return (
+    <div className="pin-overlay open" onClick={close}>
+      <div className="pin-card" onClick={(e) => e.stopPropagation()}>
+        <button className="pin-close" onClick={close} aria-label="Close"><Icon.Close /></button>
+        <div className="pin-eyebrow">◱ &nbsp; Pin as a widget</div>
+        <h2 className="pin-title">Today, always a click away.</h2>
+        <p className="pin-sub">Install Almanac as a small Mac app showing just today's tasks. Live-synced with the full app and your other devices.</p>
+
+        <div className="pin-url-row">
+          <code className="pin-url">{url}</code>
+          <button className="pin-copy" onClick={copy}>{copied ? "Copied ✓" : "Copy"}</button>
+        </div>
+
+        <div className="pin-step">
+          <div className="pin-step-num">1</div>
+          <div className="pin-step-body">
+            <div className="pin-step-title">Open that URL in <b>Safari</b> or <b>Chrome</b></div>
+          </div>
+        </div>
+
+        <div className="pin-step">
+          <div className="pin-step-num">2</div>
+          <div className="pin-step-body">
+            <div className="pin-step-title">Install it</div>
+            <ul className="pin-step-list">
+              <li><b>Safari:</b> <code>File → Add to Dock</code></li>
+              <li><b>Chrome:</b> click the <span className="pin-key">install icon</span> in the address bar, or <code>⋮ → Cast, save, and share → Install Almanac</code></li>
+            </ul>
+          </div>
+        </div>
+
+        <div className="pin-step">
+          <div className="pin-step-num">3</div>
+          <div className="pin-step-body">
+            <div className="pin-step-title">Park it where you like</div>
+            <p className="pin-step-note">Resize the new window to roughly <b>380 × 620</b> and drag it to a corner of the desktop. macOS remembers the spot between launches.</p>
+            <p className="pin-step-note">In Chrome, also <b>right-click the dock icon → Options → Keep in Dock</b> so it stays there after you quit.</p>
+          </div>
+        </div>
+
+        <div className="pin-foot">
+          <button className="pin-preview-btn" onClick={preview}>Preview at widget size →</button>
+          <span className="pin-foot-note">Works offline after first online launch.</span>
+        </div>
       </div>
     </div>
   );
