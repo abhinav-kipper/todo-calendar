@@ -238,6 +238,15 @@ export function restoreTodo(key, index, todo) {
   saveTodos();
 }
 
+export function editRecurring(id, text) {
+  const r = recurring.find(x => x.id === id);
+  if (!r) return;
+  const trimmed = String(text || '').trim();
+  if (!trimmed || r.text === trimmed) return;
+  r.text = trimmed;
+  saveTodos();
+}
+
 export function deleteRecurring(id) {
   recurring = recurring.filter(r => r.id !== id);
   Object.keys(todos).forEach(k => {

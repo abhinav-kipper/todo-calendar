@@ -1,7 +1,7 @@
 // Almanac – main React app, bridged to store.js for real data persistence
 // Adapted from the design prototype; all data ops go through window.AlmanacStore
 
-const { useState, useEffect, useRef, useMemo, useCallback } = React;
+const { useState, useEffect, useRef, useMemo, useCallback, useId } = React;
 const { DAYS, DAYS_FULL, MONTHS, dateKey, parseKey, sameDay, monthMatrix, quoteFor, moodFor, affirmationFor } = U;
 
 const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
@@ -40,6 +40,84 @@ function useDragGhost() {
     };
   }, [drag?.task?.id]);
   return [drag, setDrag];
+}
+
+// ─── Long-press detector — fires onLongPress when finger stays put for `delay`ms
+// without moving more than 6px. Cancels on touchend/touchcancel so a short tap
+// does nothing, leaving the existing tap-vs-drag logic untouched.
+function useLongPress(onLongPress, delay = 500) {
+  const timer = useRef(null);
+  const startPos = useRef(null);
+  const fired = useRef(false);
+  const cancel = useCallback(() => {
+    if (timer.current) { clearTimeout(timer.current); timer.current = null; }
+    startPos.current = null;
+  }, []);
+  const onTouchStart = useCallback((e) => {
+    const t = e.touches && e.touches[0];
+    if (!t) return;
+    fired.current = false;
+    startPos.current = { x: t.clientX, y: t.clientY };
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => {
+      fired.current = true;
+      timer.current = null;
+      onLongPress();
+    }, delay);
+  }, [onLongPress, delay]);
+  const onTouchMove = useCallback((e) => {
+    if (!timer.current || !startPos.current) return;
+    const t = e.touches && e.touches[0];
+    if (!t) return;
+    if (Math.abs(t.clientX - startPos.current.x) > 6 || Math.abs(t.clientY - startPos.current.y) > 6) {
+      cancel();
+    }
+  }, [cancel]);
+  return { onTouchStart, onTouchMove, onTouchEnd: cancel, onTouchCancel: cancel, didLongPress: () => fired.current };
+}
+
+// ─── EditableText — swaps between a label and an inline input, autoselects on
+// edit. Submits on Enter / blur, cancels on Esc. Stops mousedown/touchstart from
+// reaching parent drag handlers while editing.
+function EditableText({ text, editing, onSave, onCancel, tag = "div", className }) {
+  const inputRef = useRef(null);
+  const [draft, setDraft] = useState(text);
+  const committedRef = useRef(false);
+  useEffect(() => {
+    if (editing) {
+      setDraft(text);
+      committedRef.current = false;
+      const i = inputRef.current;
+      if (i) { i.focus(); i.select(); }
+    }
+  }, [editing, text]);
+  if (!editing) {
+    const Tag = tag;
+    return <Tag className={className}>{text}</Tag>;
+  }
+  const commit = () => {
+    if (committedRef.current) return;
+    committedRef.current = true;
+    const next = draft.trim();
+    if (next && next !== text) onSave(next); else onCancel();
+  };
+  return (
+    <input
+      ref={inputRef}
+      className={`${className || ""} editable-input`}
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") { e.preventDefault(); commit(); }
+        else if (e.key === "Escape") { e.preventDefault(); committedRef.current = true; onCancel(); }
+        e.stopPropagation();
+      }}
+      onBlur={commit}
+      onMouseDown={(e) => e.stopPropagation()}
+      onTouchStart={(e) => e.stopPropagation()}
+      onClick={(e) => e.stopPropagation()}
+    />
+  );
 }
 
 // ─── Toast ────────────────────────────────────────────────────────────────
@@ -210,6 +288,35 @@ function App() {
     };
     setTodos(cur => ({ ...cur, [key]: [...(cur[key] || []), base] }));
   };
+
+  const editTask = (key, id, newText) => {
+    const trimmed = (newText || '').trim();
+    if (!trimmed) return;
+    setTodos(cur => {
+      const list = cur[key] || [];
+      const target = list.find(t => t.id === id);
+      if (!target || target.text === trimmed) return cur;
+      if (target._isRecurring) {
+        window.AlmanacStore.editRecurring(target._recurringId, trimmed);
+        const { todos: t } = window.AlmanacStore.loadForReact();
+        return t;
+      }
+      return { ...cur, [key]: list.map(t => t.id === id ? { ...t, text: trimmed } : t) };
+    });
+  };
+
+  const editInbox = (id, newText) => {
+    const trimmed = (newText || '').trim();
+    if (!trimmed) return;
+    setInbox(cur => cur.map(t => t.id === id ? { ...t, text: trimmed } : t));
+  };
+
+  // editingId is the per-row useId() of the currently-edited row, not a task
+  // ID — same task can render in multiple surfaces (TodayPanel + DayPanel +
+  // FocusOverlay) and we only want one of them to enter edit mode at a time.
+  const [editingId, setEditingId] = useState(null);
+  const startEdit = (rowId) => setEditingId(rowId);
+  const cancelEdit = () => setEditingId(null);
 
   const addToInbox = (text) => {
     if (!text.trim()) return;
@@ -490,6 +597,7 @@ function App() {
           today={today} todos={todos}
           toggleTask={toggleTask} addTask={addTask} deleteTask={deleteTask}
           quickMove={quickMove} beginDrag={beginDrag} draggingId={drag?.task?.id}
+          editingId={editingId} startEdit={startEdit} cancelEdit={cancelEdit} editTask={editTask}
           expanded
         />
         {drag && drag.pos && (
@@ -549,6 +657,7 @@ function App() {
               openDayPanel={openDayPanel}
               beginDrag={beginDrag}
               draggingId={drag?.task?.id}
+              editingId={editingId} startEdit={startEdit} cancelEdit={cancelEdit} editTask={editTask}
             />
           )}
           {view === "inbox" && (
@@ -559,6 +668,7 @@ function App() {
               deleteInbox={deleteInbox}
               beginDrag={beginDrag}
               draggingId={drag?.task?.id}
+              editingId={editingId} startEdit={startEdit} cancelEdit={cancelEdit} editInbox={editInbox}
             />
           )}
           {view === "today" && (
@@ -567,6 +677,7 @@ function App() {
                 today={today} todos={todos}
                 toggleTask={toggleTask} addTask={addTask} deleteTask={deleteTask}
                 quickMove={quickMove} beginDrag={beginDrag} draggingId={drag?.task?.id}
+                editingId={editingId} startEdit={startEdit} cancelEdit={cancelEdit} editTask={editTask}
                 expanded
               />
               <PlantSide
@@ -583,6 +694,7 @@ function App() {
               today={today} todos={todos}
               toggleTask={toggleTask} addTask={addTask} deleteTask={deleteTask}
               quickMove={quickMove} beginDrag={beginDrag} draggingId={drag?.task?.id}
+              editingId={editingId} startEdit={startEdit} cancelEdit={cancelEdit} editTask={editTask}
             />
             <PlantSide
               progress={todayProgress} done={todayDone} total={todayTotal}
@@ -596,6 +708,7 @@ function App() {
       <DayPanel
         dayKey={openDay} todos={todos}
         addTask={addTask} toggleTask={toggleTask} deleteTask={deleteTask}
+        editingId={editingId} startEdit={startEdit} cancelEdit={cancelEdit} editTask={editTask}
         quickMove={quickMove} close={closeDayPanel}
         navDay={(delta) => {
           if (!openDay) return;
@@ -615,6 +728,7 @@ function App() {
       <FocusOverlay
         open={focusOpen} close={() => setFocusOpen(false)}
         today={today} todos={todos} toggleTask={toggleTask}
+        editingId={editingId} startEdit={startEdit} cancelEdit={cancelEdit} editTask={editTask}
       />
 
       <PinWidgetModal
@@ -903,7 +1017,7 @@ function PlantSide({ progress, done, total, direction, monthStats, message, onPl
 }
 
 // ─── TodayPanel ───────────────────────────────────────────────────────────
-function TodayPanel({ today, todos, toggleTask, addTask, deleteTask, quickMove, beginDrag, draggingId }) {
+function TodayPanel({ today, todos, toggleTask, addTask, deleteTask, quickMove, beginDrag, draggingId, editingId, startEdit, cancelEdit, editTask }) {
   const key = dateKey(today);
   const list = U.sortTasks(todos[key] || []);
   const done = list.filter(t => t.done).length;
@@ -951,34 +1065,50 @@ function TodayPanel({ today, todos, toggleTask, addTask, deleteTask, quickMove, 
             <span className="today-empty-sub">capture something below ↓</span>
           </div>
         )}
-        {list.map(t => (
-          <div key={t.id}
-            className={`today-row p-${t.priority} ${t.done ? "done" : ""} ${draggingId === t.id ? "dragging" : ""} ${t._new ? "entering" : ""}`}
-            onMouseDown={(e) => { if (e.target.closest(".tickbox, button")) return; beginDrag(e, t, key, () => {}); }}
-            onTouchStart={(e) => { if (e.target.closest(".tickbox, button")) return; beginDrag(e, t, key, () => {}); }}
-          >
-            <Tickbox checked={t.done} onChange={() => toggleTask(key, t.id)} />
-            <div className="today-text">
-              <div className="today-task-label">{t.text}</div>
-              {(t.priority !== "low" || t.repeat !== "none") && (
-                <div className="today-task-meta">
-                  {t.priority !== "low" && <span className={`tag p-${t.priority}`}>{t.priority}</span>}
-                  {t.repeat !== "none" && <span className="tag">↻ {t.repeat}</span>}
-                </div>
-              )}
-            </div>
-            <div className="today-row-acts">
-              <button onClick={() => quickMove(t, key, 1)} title="Tomorrow">+1d</button>
-              <button className="danger" onClick={() => deleteTask(key, t.id)}>×</button>
-            </div>
-          </div>
-        ))}
+        {list.map(t => <TodayRow key={t.id} t={t} dayKey={key} {...{ toggleTask, deleteTask, quickMove, beginDrag, draggingId, editingId, startEdit, cancelEdit, editTask }} />)}
       </div>
       <div className="today-add">
         <input ref={inputRef} value={draft} onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") submit(); }}
           placeholder="add to today…" />
         <button onClick={submit} disabled={!draft.trim()}>+</button>
+      </div>
+    </div>
+  );
+}
+
+function TodayRow({ t, dayKey, toggleTask, deleteTask, quickMove, beginDrag, draggingId, editingId, startEdit, cancelEdit, editTask }) {
+  const rowId = useId();
+  const editing = editingId === rowId;
+  const lp = useLongPress(() => startEdit(rowId));
+  return (
+    <div
+      className={`today-row p-${t.priority} ${t.done ? "done" : ""} ${draggingId === t.id ? "dragging" : ""} ${t._new ? "entering" : ""} ${editing ? "editing" : ""}`}
+      onMouseDown={(e) => { if (editing || e.target.closest(".tickbox, button, .editable-input")) return; beginDrag(e, t, dayKey, () => {}); }}
+      onTouchStart={(e) => { if (editing || e.target.closest(".tickbox, button, .editable-input")) return; lp.onTouchStart(e); beginDrag(e, t, dayKey, () => {}); }}
+      onTouchMove={lp.onTouchMove}
+      onTouchEnd={lp.onTouchEnd}
+      onTouchCancel={lp.onTouchCancel}
+      onDoubleClick={(e) => { if (e.target.closest(".tickbox, button")) return; startEdit(rowId); }}
+    >
+      <Tickbox checked={t.done} onChange={() => toggleTask(dayKey, t.id)} />
+      <div className="today-text">
+        <EditableText
+          text={t.text} editing={editing}
+          onSave={(v) => { editTask(dayKey, t.id, v); cancelEdit(); }}
+          onCancel={cancelEdit}
+          className="today-task-label"
+        />
+        {!editing && (t.priority !== "low" || t.repeat !== "none") && (
+          <div className="today-task-meta">
+            {t.priority !== "low" && <span className={`tag p-${t.priority}`}>{t.priority}</span>}
+            {t.repeat !== "none" && <span className="tag">↻ {t.repeat}</span>}
+          </div>
+        )}
+      </div>
+      <div className="today-row-acts">
+        <button onClick={() => quickMove(t, dayKey, 1)} title="Tomorrow">+1d</button>
+        <button className="danger" onClick={() => deleteTask(dayKey, t.id)}>×</button>
       </div>
     </div>
   );
@@ -1087,7 +1217,7 @@ function DayCell({ dateKey: key, date, muted, isToday, weekend, list, visible, p
 }
 
 // ─── WeekView ─────────────────────────────────────────────────────────────
-function WeekView({ today, todos, toggleTask, openDayPanel, beginDrag, draggingId }) {
+function WeekView({ today, todos, toggleTask, openDayPanel, beginDrag, draggingId, editingId, startEdit, cancelEdit, editTask }) {
   const start = U.startOfWeek(today);
   const days = Array.from({ length: 7 }, (_, i) => { const d = new Date(start); d.setDate(start.getDate() + i); return d; });
   return (
@@ -1096,14 +1226,15 @@ function WeekView({ today, todos, toggleTask, openDayPanel, beginDrag, draggingI
         const key = dateKey(d);
         return (
           <WeekCol key={key} d={d} dKey={key} list={todos[key] || []} isToday={sameDay(d, today)}
-            toggleTask={toggleTask} openDayPanel={openDayPanel} beginDrag={beginDrag} draggingId={draggingId} />
+            toggleTask={toggleTask} openDayPanel={openDayPanel} beginDrag={beginDrag} draggingId={draggingId}
+            editingId={editingId} startEdit={startEdit} cancelEdit={cancelEdit} editTask={editTask} />
         );
       })}
     </div>
   );
 }
 
-function WeekCol({ d, dKey, list, isToday, toggleTask, openDayPanel, beginDrag, draggingId }) {
+function WeekCol({ d, dKey, list, isToday, toggleTask, openDayPanel, beginDrag, draggingId, editingId, startEdit, cancelEdit, editTask }) {
   const ref = useRef(null);
   useEffect(() => {
     if (!ref.current) return;
@@ -1123,26 +1254,47 @@ function WeekCol({ d, dKey, list, isToday, toggleTask, openDayPanel, beginDrag, 
         </div>
         {list.length > 0 && <div className="day-dot">{list.filter(t => !t.done).length} left</div>}
       </div>
-      {list.map(t => (
-        <div key={t.id} className={`week-task ${t.done ? "done" : ""} ${draggingId === t.id ? "dragging" : ""}`}
-          onMouseDown={e => beginDrag(e, t, dKey)} onTouchStart={e => beginDrag(e, t, dKey)}>
-          <Tickbox checked={t.done} onChange={() => toggleTask(dKey, t.id)} />
-          <div style={{ flex: 1 }}>
-            <div className="week-task-label">{t.text}</div>
-            <div className="week-task-meta">
-              <span style={{ color: t.priority === "high" ? "var(--danger)" : t.priority === "medium" ? "var(--warn)" : "var(--ink-4)" }}>{t.priority}</span>
-              {t.repeat !== "none" && <span>· {t.repeat}</span>}
-            </div>
-          </div>
-        </div>
-      ))}
+      {list.map(t => <WeekTaskRow key={t.id} t={t} dKey={dKey} {...{ toggleTask, beginDrag, draggingId, editingId, startEdit, cancelEdit, editTask }} />)}
       <button className="week-add" onClick={() => openDayPanel(dKey)}>+ Add to {DAYS[d.getDay()]}</button>
     </div>
   );
 }
 
+function WeekTaskRow({ t, dKey, toggleTask, beginDrag, draggingId, editingId, startEdit, cancelEdit, editTask }) {
+  const rowId = useId();
+  const editing = editingId === rowId;
+  const lp = useLongPress(() => startEdit(rowId));
+  return (
+    <div
+      className={`week-task ${t.done ? "done" : ""} ${draggingId === t.id ? "dragging" : ""} ${editing ? "editing" : ""}`}
+      onMouseDown={(e) => { if (editing || e.target.closest(".tickbox, .editable-input")) return; beginDrag(e, t, dKey); }}
+      onTouchStart={(e) => { if (editing || e.target.closest(".tickbox, .editable-input")) return; lp.onTouchStart(e); beginDrag(e, t, dKey); }}
+      onTouchMove={lp.onTouchMove}
+      onTouchEnd={lp.onTouchEnd}
+      onTouchCancel={lp.onTouchCancel}
+      onDoubleClick={(e) => { if (e.target.closest(".tickbox")) return; startEdit(rowId); }}
+    >
+      <Tickbox checked={t.done} onChange={() => toggleTask(dKey, t.id)} />
+      <div style={{ flex: 1 }}>
+        <EditableText
+          text={t.text} editing={editing}
+          onSave={(v) => { editTask(dKey, t.id, v); cancelEdit(); }}
+          onCancel={cancelEdit}
+          className="week-task-label"
+        />
+        {!editing && (
+          <div className="week-task-meta">
+            <span style={{ color: t.priority === "high" ? "var(--danger)" : t.priority === "medium" ? "var(--warn)" : "var(--ink-4)" }}>{t.priority}</span>
+            {t.repeat !== "none" && <span>· {t.repeat}</span>}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── InboxView ────────────────────────────────────────────────────────────
-function InboxView({ inbox, addToInbox, toggleInbox, deleteInbox, beginDrag, draggingId }) {
+function InboxView({ inbox, addToInbox, toggleInbox, deleteInbox, beginDrag, draggingId, editingId, startEdit, cancelEdit, editInbox }) {
   const [text, setText] = useState("");
   const ref = useRef(null);
   useEffect(() => {
@@ -1164,15 +1316,7 @@ function InboxView({ inbox, addToInbox, toggleInbox, deleteInbox, beginDrag, dra
         <button onClick={() => { addToInbox(text); setText(""); }}>Add</button>
       </div>
       <div className="inbox-list">
-        {inbox.map(t => (
-          <div key={t.id} className={`inbox-item ${t.done ? "done" : ""} ${draggingId === t.id ? "dragging" : ""}`}
-            onMouseDown={e => beginDrag(e, t, "__inbox")} onTouchStart={e => beginDrag(e, t, "__inbox")}>
-            <Tickbox checked={t.done} onChange={() => toggleInbox(t.id)} />
-            <div className="inbox-item-text">{t.text}</div>
-            <button className="danger small" onClick={() => deleteInbox(t.id)} title="Delete">×</button>
-            <span className="inbox-grab">⠿ drag</span>
-          </div>
-        ))}
+        {inbox.map(t => <InboxItemRow key={t.id} t={t} {...{ toggleInbox, deleteInbox, beginDrag, draggingId, editingId, startEdit, cancelEdit, editInbox }} />)}
         {inbox.length === 0 && (
           <div className="empty">
             <div className="empty-illust">All caught up.</div>
@@ -1184,8 +1328,35 @@ function InboxView({ inbox, addToInbox, toggleInbox, deleteInbox, beginDrag, dra
   );
 }
 
+function InboxItemRow({ t, toggleInbox, deleteInbox, beginDrag, draggingId, editingId, startEdit, cancelEdit, editInbox }) {
+  const rowId = useId();
+  const editing = editingId === rowId;
+  const lp = useLongPress(() => startEdit(rowId));
+  return (
+    <div
+      className={`inbox-item ${t.done ? "done" : ""} ${draggingId === t.id ? "dragging" : ""} ${editing ? "editing" : ""}`}
+      onMouseDown={(e) => { if (editing || e.target.closest(".tickbox, button, .editable-input")) return; beginDrag(e, t, "__inbox"); }}
+      onTouchStart={(e) => { if (editing || e.target.closest(".tickbox, button, .editable-input")) return; lp.onTouchStart(e); beginDrag(e, t, "__inbox"); }}
+      onTouchMove={lp.onTouchMove}
+      onTouchEnd={lp.onTouchEnd}
+      onTouchCancel={lp.onTouchCancel}
+      onDoubleClick={(e) => { if (e.target.closest(".tickbox, button")) return; startEdit(rowId); }}
+    >
+      <Tickbox checked={t.done} onChange={() => toggleInbox(t.id)} />
+      <EditableText
+        text={t.text} editing={editing}
+        onSave={(v) => { editInbox(t.id, v); cancelEdit(); }}
+        onCancel={cancelEdit}
+        className="inbox-item-text"
+      />
+      <button className="danger small" onClick={() => deleteInbox(t.id)} title="Delete">×</button>
+      <span className="inbox-grab">⠿ drag</span>
+    </div>
+  );
+}
+
 // ─── DayPanel ─────────────────────────────────────────────────────────────
-function DayPanel({ dayKey, todos, addTask, toggleTask, deleteTask, quickMove, close, navDay, draftPriority, setDraftPriority, draftRepeat, setDraftRepeat, draftText, setDraftText, inputFocused, setInputFocused, inputRef, beginDrag, draggingId, today }) {
+function DayPanel({ dayKey, todos, addTask, toggleTask, deleteTask, quickMove, close, navDay, draftPriority, setDraftPriority, draftRepeat, setDraftRepeat, draftText, setDraftText, inputFocused, setInputFocused, inputRef, beginDrag, draggingId, today, editingId, startEdit, cancelEdit, editTask }) {
   const open = !!dayKey;
   const date = dayKey ? parseKey(dayKey) : null;
   const rawList = (dayKey && todos[dayKey]) || [];
@@ -1247,27 +1418,7 @@ function DayPanel({ dayKey, todos, addTask, toggleTask, deleteTask, quickMove, c
                 </div>
               </div>
               <div className="task-list">
-                {list.map(t => (
-                  <div key={t.id}
-                    className={`task-row ${t.done ? "done" : ""} ${t._new ? "entering" : ""} ${draggingId === t.id ? "dragging" : ""}`}
-                    onMouseDown={e => { if (e.target.closest(".tickbox, .row-act, .task-label")) return; beginDrag(e, t, dayKey); }}
-                    onTouchStart={e => { if (e.target.closest(".tickbox, .row-act, .task-label")) return; beginDrag(e, t, dayKey); }}>
-                    <Tickbox checked={t.done} onChange={() => toggleTask(dayKey, t.id)} />
-                    <div className="task-body">
-                      <div className="task-label">{t.text}</div>
-                      <div className="task-meta">
-                        <span className={`tag p-${t.priority}`}>{t.priority}</span>
-                        {t.repeat !== "none" && <span className="tag">↻ {t.repeat}</span>}
-                      </div>
-                    </div>
-                    <div className="row-actions">
-                      <button className="row-act" onClick={() => quickMove(t, dayKey, 1)}>+1d</button>
-                      <button className="row-act" onClick={() => quickMove(t, dayKey, 7)}>+7d</button>
-                      <button className="row-act" onClick={() => quickMove(t, dayKey, "__inbox")}>↩</button>
-                      <button className="row-act danger" onClick={() => deleteTask(dayKey, t.id)}><Icon.Trash /></button>
-                    </div>
-                  </div>
-                ))}
+                {list.map(t => <DayTaskRow key={t.id} t={t} dayKey={dayKey} {...{ toggleTask, deleteTask, quickMove, beginDrag, draggingId, editingId, startEdit, cancelEdit, editTask }} />)}
                 {list.length === 0 && (
                   <div className="empty">
                     <div className="empty-illust">A clear day.</div>
@@ -1290,8 +1441,47 @@ function DayPanel({ dayKey, todos, addTask, toggleTask, deleteTask, quickMove, c
   );
 }
 
+function DayTaskRow({ t, dayKey, toggleTask, deleteTask, quickMove, beginDrag, draggingId, editingId, startEdit, cancelEdit, editTask }) {
+  const rowId = useId();
+  const editing = editingId === rowId;
+  const lp = useLongPress(() => startEdit(rowId));
+  return (
+    <div
+      className={`task-row ${t.done ? "done" : ""} ${t._new ? "entering" : ""} ${draggingId === t.id ? "dragging" : ""} ${editing ? "editing" : ""}`}
+      onMouseDown={(e) => { if (editing || e.target.closest(".tickbox, .row-act, .task-label, .editable-input")) return; beginDrag(e, t, dayKey); }}
+      onTouchStart={(e) => { if (editing || e.target.closest(".tickbox, .row-act, .task-label, .editable-input")) return; lp.onTouchStart(e); beginDrag(e, t, dayKey); }}
+      onTouchMove={lp.onTouchMove}
+      onTouchEnd={lp.onTouchEnd}
+      onTouchCancel={lp.onTouchCancel}
+      onDoubleClick={(e) => { if (e.target.closest(".tickbox, .row-act, button")) return; startEdit(rowId); }}
+    >
+      <Tickbox checked={t.done} onChange={() => toggleTask(dayKey, t.id)} />
+      <div className="task-body">
+        <EditableText
+          text={t.text} editing={editing}
+          onSave={(v) => { editTask(dayKey, t.id, v); cancelEdit(); }}
+          onCancel={cancelEdit}
+          className="task-label"
+        />
+        {!editing && (
+          <div className="task-meta">
+            <span className={`tag p-${t.priority}`}>{t.priority}</span>
+            {t.repeat !== "none" && <span className="tag">↻ {t.repeat}</span>}
+          </div>
+        )}
+      </div>
+      <div className="row-actions">
+        <button className="row-act" onClick={() => quickMove(t, dayKey, 1)}>+1d</button>
+        <button className="row-act" onClick={() => quickMove(t, dayKey, 7)}>+7d</button>
+        <button className="row-act" onClick={() => quickMove(t, dayKey, "__inbox")}>↩</button>
+        <button className="row-act danger" onClick={() => deleteTask(dayKey, t.id)}><Icon.Trash /></button>
+      </div>
+    </div>
+  );
+}
+
 // ─── FocusOverlay ─────────────────────────────────────────────────────────
-function FocusOverlay({ open, close, today, todos, toggleTask }) {
+function FocusOverlay({ open, close, today, todos, toggleTask, editingId, startEdit, cancelEdit, editTask }) {
   const key = dateKey(today);
   const list = todos[key] || [];
   const done = list.filter(t => t.done).length;
@@ -1314,20 +1504,41 @@ function FocusOverlay({ open, close, today, todos, toggleTask }) {
           <div className="progress-bar"><div className="progress-fill" style={{ width: `${pct}%` }} /></div>
           <div className="progress-text">{done} of {total} done</div>
         </div>
-        {list.map(t => (
-          <div key={t.id} className={`focus-task ${t.done ? "done" : ""}`}>
-            <Tickbox checked={t.done} onChange={() => toggleTask(key, t.id)} size={22} />
-            <div style={{ flex: 1 }}>
-              <div className="focus-task-label">{t.text}</div>
-              <div className="focus-task-meta">{t.priority}{t.repeat !== "none" ? ` · ${t.repeat}` : ""}</div>
-            </div>
-          </div>
-        ))}
+        {list.map(t => <FocusTaskRow key={t.id} t={t} dayKey={key} {...{ toggleTask, editingId, startEdit, cancelEdit, editTask }} />)}
         {list.length === 0 && (
           <div className="empty" style={{ paddingTop: 80 }}>
             <div className="empty-illust">Nothing planned for today.</div>
             <div className="empty-sub">— add tasks from the month view —</div>
           </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function FocusTaskRow({ t, dayKey, toggleTask, editingId, startEdit, cancelEdit, editTask }) {
+  const rowId = useId();
+  const editing = editingId === rowId;
+  const lp = useLongPress(() => startEdit(rowId));
+  return (
+    <div
+      className={`focus-task ${t.done ? "done" : ""} ${editing ? "editing" : ""}`}
+      onTouchStart={(e) => { if (editing || e.target.closest(".tickbox, .editable-input")) return; lp.onTouchStart(e); }}
+      onTouchMove={lp.onTouchMove}
+      onTouchEnd={lp.onTouchEnd}
+      onTouchCancel={lp.onTouchCancel}
+      onDoubleClick={(e) => { if (e.target.closest(".tickbox")) return; startEdit(rowId); }}
+    >
+      <Tickbox checked={t.done} onChange={() => toggleTask(dayKey, t.id)} size={22} />
+      <div style={{ flex: 1 }}>
+        <EditableText
+          text={t.text} editing={editing}
+          onSave={(v) => { editTask(dayKey, t.id, v); cancelEdit(); }}
+          onCancel={cancelEdit}
+          className="focus-task-label"
+        />
+        {!editing && (
+          <div className="focus-task-meta">{t.priority}{t.repeat !== "none" ? ` · ${t.repeat}` : ""}</div>
         )}
       </div>
     </div>
