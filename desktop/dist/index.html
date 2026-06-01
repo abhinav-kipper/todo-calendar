@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Almanac</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #FAF3F8; color: #3D2E5C; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  .wrap { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 24px; text-align: center; }
+  .mark { font-size: 36px; }
+  h1 { margin: 0; font-size: 18px; font-weight: 600; }
+  p { margin: 0; opacity: 0.7; font-size: 13px; line-height: 1.4; }
+  a { color: #3D2E5C; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="mark">✿</div>
+  <h1>Loading Almanac…</h1>
+  <p>If this screen stays, check your internet connection,<br/>then quit and reopen the widget.</p>
+  <p><a href="https://abhinav-kipper.github.io/todo-calendar/?widget=1">Open in browser</a></p>
+</div>
+<script>
+  // The Tauri window is configured to load the live URL directly via
+  // tauri.conf.json -> app.windows[].url, so this fallback is only
+  // visible briefly while the remote loads.
+  setTimeout(function(){ location.href = "https://abhinav-kipper.github.io/todo-calendar/?widget=1"; }, 500);
+</script>
+</body>
+</html>
