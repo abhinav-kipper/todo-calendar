@@ -87,6 +87,7 @@ function App() {
   const [user, setUser] = useState(null);
   const [syncStatus, setSyncStatus] = useState('Local');
   const syncEnabled = useRef(false);
+  const pendingRemoteApply = useRef(false);
 
   // Init Firebase + auth on mount (wait for module bridge to be ready)
   useEffect(() => {
@@ -95,7 +96,15 @@ function App() {
       if (!Bridge) { setTimeout(tryInit, 30); return; }
       Bridge.initFirebase();
       Bridge.setOnStateChange(s => setSyncStatus(s));
+      Bridge.wireStorageSync();
+      Bridge.setOnDataChange(() => {
+        const { todos: t, inbox: ib } = Bridge.loadForReact();
+        pendingRemoteApply.current = true;
+        setTodos(t);
+        setInbox(ib);
+      });
       Bridge.onAuthChange(async (u) => {
+        Bridge.unsubscribeFromRemote();
         setUser(u);
         syncEnabled.current = false; // disable sync while loading
         const status = await Bridge.loadTodos();
@@ -104,6 +113,7 @@ function App() {
         setTodos(t);
         setInbox(ib);
         setLoading(false);
+        if (u) Bridge.subscribeToRemote();
         // enable sync AFTER data is loaded (small delay so React batches the state updates first)
         setTimeout(() => { syncEnabled.current = true; }, 100);
       });
@@ -114,6 +124,10 @@ function App() {
   // Sync React state → store after every user-driven change
   useEffect(() => {
     if (!syncEnabled.current) return;
+    if (pendingRemoteApply.current) {
+      pendingRemoteApply.current = false;
+      return;
+    }
     window.AlmanacStore.syncFromReact(todos, inbox);
   }, [todos, inbox]);
 
