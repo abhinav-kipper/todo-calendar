@@ -2523,3 +2523,74 @@ button.danger.small:hover { opacity: 1; }
 /* Inbox delete button position */
 .inbox-item { position: relative; }
 
+/* ════════════════════════════════════════════════════════════════════════
+   WIDGET MODE — ?widget=1 renders a stripped-down today-only layout
+   suitable for pinning as a small PWA window on macOS
+   ════════════════════════════════════════════════════════════════════════ */
+html[data-widget="1"] body::before,
+html[data-widget="1"] body::after { display: none; }
+.app.widget {
+  max-width: 100%;
+  padding: 14px;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: var(--paper);
+}
+.app.widget .today-card {
+  flex: 1;
+  max-height: none;
+  border-width: 2.5px;
+}
+.app.widget .today-list { max-height: none; }
+.widget-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 2px 4px;
+}
+.widget-date {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--display);
+  color: var(--ink);
+  line-height: 1;
+}
+.widget-day {
+  font-size: 38px;
+  font-weight: 700;
+}
+.widget-day-name {
+  font-family: var(--body);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  line-height: 1.15;
+}
+.widget-day-name span {
+  font-weight: 500;
+  opacity: 0.7;
+}
+.widget-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.iconbtn.small {
+  width: 32px;
+  height: 32px;
+  font-size: 14px;
+  text-decoration: none;
+  color: var(--ink);
+  box-shadow: 2px 2px 0 0 var(--ink);
+}
+.iconbtn.small:hover { box-shadow: 3px 3px 0 0 var(--ink); }
+@media (max-width: 480px) {
+  .app.widget { padding: 10px; gap: 8px; }
+  .widget-day { font-size: 30px; }
+}
+

@@ -66,9 +66,14 @@ function App() {
     } catch { return null; }
   }, []);
   const direction = urlDir || tweaks.direction;
+  const isWidget = useMemo(() => {
+    try { return new URLSearchParams(window.location.search).get("widget") === "1"; }
+    catch { return false; }
+  }, []);
   useEffect(() => {
     document.documentElement.dataset.direction = direction;
-  }, [direction]);
+    if (isWidget) document.documentElement.dataset.widget = "1";
+  }, [direction, isWidget]);
 
   useEffect(() => {
     Sounds.setEnabled(tweaks.soundOn);
@@ -449,6 +454,45 @@ function App() {
   const cells = monthMatrix(cursor.getFullYear(), cursor.getMonth());
   const inboxCount = inbox.filter(t => !t.done).length;
 
+  if (isWidget) {
+    const fullUrl = window.location.pathname + (window.location.hash || "");
+    return (
+      <div className="app widget" data-density={tweaks.density}>
+        <div className="widget-bar">
+          <div className="widget-date">
+            <span className="widget-day">{today.getDate()}</span>
+            <span className="widget-day-name">{DAYS_FULL[today.getDay()]}<br/><span>{MONTHS[today.getMonth()]}</span></span>
+          </div>
+          <div className="widget-actions">
+            <span className="sync-pill" data-tip={syncStatus === "Local" ? "Saved on this device" : "Synced to Google"}>{syncStatus}</span>
+            {!user && (
+              <button className="ghost-btn small" onClick={() => window.AlmanacStore.signInWithGoogle()} data-tip="Sign in to sync">Sign in</button>
+            )}
+            <a className="iconbtn small" href={fullUrl} target="_blank" rel="noopener noreferrer" data-tip="Open full Almanac" aria-label="Open full Almanac">↗</a>
+          </div>
+        </div>
+        <TodayPanel
+          today={today} todos={todos}
+          toggleTask={toggleTask} addTask={addTask} deleteTask={deleteTask}
+          quickMove={quickMove} beginDrag={beginDrag} draggingId={drag?.task?.id}
+          expanded
+        />
+        {drag && drag.pos && (
+          <div className="drag-ghost" style={{ left: drag.pos.x, top: drag.pos.y }}>
+            {drag.task.text}
+          </div>
+        )}
+        {toast && (
+          <div className={`toast ${toast.open ? "open" : ""}`}>
+            <span>{toast.msg}</span>
+            {toast.action === "undo" && <button onClick={undoDelete}>Undo</button>}
+            <div className="toast-bar" style={{ animation: toast.open ? "shrink 4s linear forwards" : "none" }} />
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="app" data-density={tweaks.density}>
       <TopBar
@@ -706,6 +750,7 @@ function TopBar({ cursor, view, setView, onPrev, onNext, onToday, onOpenInbox, o
           <Icon.Inbox />
           {inboxCount > 0 && <span className="pip inbox-pip">{inboxCount}</span>}
         </button>
+        <a className="iconbtn" href="?widget=1" target="_blank" rel="noopener noreferrer" data-tip="Open today as a pinnable widget" aria-label="Today widget" style={{ textDecoration: "none", color: "var(--ink)", fontFamily: "var(--display)", fontSize: 16 }}>◱</a>
         <button className="iconbtn" onClick={onToggleDirection} data-tip={`Switch vibe → ${direction === "A" ? "Memphis Mall" : "Sticker Book"}`} aria-label="Switch design vibe" style={{ fontFamily: "var(--display)", fontSize: 16 }}>
           {direction}
         </button>
