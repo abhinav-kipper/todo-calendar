@@ -153,6 +153,11 @@ window.AlmanacStore = {
     S.deleteRecurring(id);
   },
 
+  // Edit a recurring task's text (applies to all materialized occurrences)
+  editRecurring(id, text) {
+    S.editRecurring(id, text);
+  },
+
   // Export/Import
   exportData() {
     const data = { todos: S.todos, recurring: S.recurring, inbox: S.getInbox ? S.getInbox() : [] };
