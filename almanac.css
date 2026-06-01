@@ -352,6 +352,17 @@ html[data-direction="B"] .view-switch button.active { background: var(--orange);
   top: auto;
   bottom: calc(100% + 10px);
 }
+[data-tip-align="end"]:hover::after,
+[data-tip-align="end"]:focus-visible::after {
+  left: auto;
+  right: 0;
+  transform: none;
+  animation: tip-in-end 0.16s ease-out;
+}
+@keyframes tip-in-end {
+  from { opacity: 0; transform: translateY(-3px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
 @keyframes tip-in {
   from { opacity: 0; transform: translateX(-50%) translateY(-3px); }
   to   { opacity: 1; transform: translateX(-50%) translateY(0); }
@@ -2529,6 +2540,9 @@ button.danger.small:hover { opacity: 1; }
    ════════════════════════════════════════════════════════════════════════ */
 html[data-widget="1"] body::before,
 html[data-widget="1"] body::after { display: none; }
+html[data-widget="1"], html[data-widget="1"] body {
+  overflow-x: hidden;
+}
 .app.widget {
   max-width: 100%;
   padding: 14px;
@@ -2537,6 +2551,7 @@ html[data-widget="1"] body::after { display: none; }
   flex-direction: column;
   gap: 12px;
   background: var(--paper);
+  overflow-x: hidden;
 }
 .app.widget .today-card {
   flex: 1;
