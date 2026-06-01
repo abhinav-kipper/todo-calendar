@@ -10,8 +10,12 @@ let todosForDayCache = {};
 let cacheVersion = 0;
 let auth, db;
 let onStateChange = () => {};
+let onDataChange = () => {};
+let remoteUnsubscribe = null;
+let storageWired = false;
 
 export function setOnStateChange(fn) { onStateChange = fn; }
+export function setOnDataChange(fn) { onDataChange = fn; }
 export function getCurrentUser() { return currentUser; }
 
 // --- Firebase init ---
@@ -40,6 +44,52 @@ export function signInWithGoogle() {
 }
 
 export function signOut() { auth.signOut(); }
+
+// --- Live sync: Firestore onSnapshot + cross-tab storage events ---
+export function subscribeToRemote() {
+  unsubscribeFromRemote();
+  if (!currentUser) return;
+  remoteUnsubscribe = db.collection('users').doc(currentUser.uid).onSnapshot(
+    snap => {
+      if (!snap.exists) return;
+      if (snap.metadata.hasPendingWrites) return;
+      const d = snap.data();
+      todos = d.todos || {};
+      recurring = d.recurring || [];
+      localStorage.setItem('todo-calendar-data', JSON.stringify(todos));
+      localStorage.setItem('todo-calendar-recurring', JSON.stringify(recurring));
+      invalidateCache();
+      onDataChange();
+    },
+    () => {}
+  );
+}
+
+export function unsubscribeFromRemote() {
+  if (remoteUnsubscribe) { remoteUnsubscribe(); remoteUnsubscribe = null; }
+}
+
+export function wireStorageSync() {
+  if (storageWired) return;
+  storageWired = true;
+  window.addEventListener('storage', (e) => {
+    if (currentUser) return;
+    if (!e.key) return;
+    try {
+      if (e.key === 'todo-calendar-data') {
+        todos = e.newValue ? JSON.parse(e.newValue) : {};
+        invalidateCache();
+        onDataChange();
+      } else if (e.key === 'todo-calendar-recurring') {
+        recurring = e.newValue ? JSON.parse(e.newValue) : [];
+        invalidateCache();
+        onDataChange();
+      } else if (e.key === 'todo-calendar-inbox') {
+        onDataChange();
+      }
+    } catch {}
+  });
+}
 
 // --- Cache ---
 export function invalidateCache() { cacheVersion++; todosForDayCache = {}; }

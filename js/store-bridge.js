@@ -11,6 +11,10 @@ window.AlmanacStore = {
   getCurrentUser: () => S.getCurrentUser(),
   loadTodos: () => S.loadTodos(),
   setOnStateChange: (fn) => S.setOnStateChange(fn),
+  setOnDataChange: (fn) => S.setOnDataChange(fn),
+  subscribeToRemote: () => S.subscribeToRemote(),
+  unsubscribeFromRemote: () => S.unsubscribeFromRemote(),
+  wireStorageSync: () => S.wireStorageSync(),
 
   // Getters (live module bindings)
   get todos() { return S.todos; },
