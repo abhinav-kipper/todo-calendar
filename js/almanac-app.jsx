@@ -590,7 +590,7 @@ function App() {
             {!user && (
               <button className="ghost-btn small" onClick={() => window.AlmanacStore.signInWithGoogle()} data-tip="Sign in to sync">Sign in</button>
             )}
-            <a className="iconbtn small" href={fullUrl} target="_blank" rel="noopener noreferrer" data-tip="Open full Almanac" aria-label="Open full Almanac">↗</a>
+            <a className="iconbtn small" href={fullUrl} target="_blank" rel="noopener noreferrer" data-tip="Open full Almanac" data-tip-align="end" aria-label="Open full Almanac">↗</a>
           </div>
         </div>
         <TodayPanel
