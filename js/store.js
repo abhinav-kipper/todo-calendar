@@ -1,5 +1,5 @@
 // --- State management, persistence, and Firebase ---
-import { dateKey, generateId } from './utils.js';
+import { dateKey, generateId, planCarryForward } from './utils.js';
 
 // --- State ---
 export let todos = {};
@@ -316,6 +316,18 @@ export function moveYesterdayToToday() {
   if (toKeep.length === 0) delete todos[yKey]; else todos[yKey] = toKeep;
   saveTodos();
   return toMove.length;
+}
+
+// Automatically move every incomplete task from any past day onto today so that
+// nothing is missed when the date rolls over. Persists only if something moved.
+// Returns the number of tasks carried forward.
+export function autoCarryForward() {
+  const todayKey = dateKey(new Date());
+  const { todos: next, moved } = planCarryForward(todos, todayKey);
+  if (moved === 0) return 0;
+  todos = next;
+  saveTodos();
+  return moved;
 }
 
 export function carryForwardAll() {

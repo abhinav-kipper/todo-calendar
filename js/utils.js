@@ -81,3 +81,31 @@ export function getOverdueTodos(todos, maxDays = 7) {
 export function generateId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 }
+
+// Pure carry-forward planner: given the todos map and today's key, returns a new
+// todos map where every incomplete, non-recurring task on a past day is moved to
+// today. Completed tasks and recurring markers stay on their original day so that
+// history, streaks, and the heatmap remain accurate. Returns { todos, moved }.
+export function planCarryForward(todos, todayKey) {
+  const next = {};
+  // Shallow-clone every day except today; collect tasks that need to move.
+  const moved = [];
+  for (const key of Object.keys(todos)) {
+    if (key === todayKey) continue;
+    const items = todos[key] || [];
+    if (key < todayKey) {
+      const toMove = items.filter(t => !t.recurringId && !t.done);
+      const toKeep = items.filter(t => t.recurringId || t.done);
+      if (toMove.length > 0) {
+        moved.push(...toMove);
+        if (toKeep.length > 0) next[key] = toKeep;
+        continue;
+      }
+    }
+    next[key] = items;
+  }
+  const todayItems = (todos[todayKey] || []).slice();
+  if (moved.length > 0) todayItems.push(...moved);
+  if (todayItems.length > 0) next[todayKey] = todayItems;
+  return { todos: next, moved: moved.length };
+}

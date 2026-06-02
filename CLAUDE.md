@@ -88,7 +88,8 @@ todo-calendar/
 ### Productivity
 - **Search** (keyboard `/`) - searches across all todos, notes, recurring, and inbox
 - **Undo** - 5-second toast with timer bar on any delete action
-- **Carry-forward** - banner on app load showing overdue items from past 7 days, one-click move to today
+- **Auto carry-forward** - on app load and whenever the date rolls over (midnight, or the tab waking after days away), all unfinished non-recurring tasks from past days are automatically moved onto today so nothing is missed. Completed tasks and recurring markers stay on their original day for history/streaks. Pure logic in `utils.js` (`planCarryForward`), applied via `store.autoCarryForward()`, date-change watch in `app.js`
+- **Carry-forward banner** - manual fallback banner showing overdue items from past 7 days with one-click move to today (rarely seen now that carry-forward is automatic)
 - **Keyboard shortcuts** - `/` search, `N` new (opens today), `I` inbox, `F` focus, `?` toggle hint, `Esc` close, `←→` navigate days
 - Export/Import JSON backup
 - Google Sign-in for cross-device cloud sync

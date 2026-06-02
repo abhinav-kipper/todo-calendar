@@ -589,9 +589,39 @@ function init() {
     const status = await store.loadTodos();
     showSyncStatus(status);
     store.invalidateCache();
+    // Auto-roll any unfinished tasks from past days onto today so nothing is missed.
+    store.autoCarryForward();
+    lastSeenDateKey = dateKey(new Date());
     render();
     setTimeout(checkCarryForward, 300);
   });
+
+  initDateRolloverWatch();
+}
+
+// --- Auto carry-forward on date change ---
+// When the calendar date changes (midnight, or the tab waking after days away),
+// pull every unfinished task from past days onto the new "today" automatically.
+let lastSeenDateKey = dateKey(new Date());
+function handleDateRollover() {
+  const nowKey = dateKey(new Date());
+  if (nowKey === lastSeenDateKey) return;
+  lastSeenDateKey = nowKey;
+  const moved = store.autoCarryForward();
+  store.invalidateCache();
+  render();
+  if (selectedDate) {
+    const key = dateKey(selectedDate);
+    renderProgress(key); renderPanelTodoList(key); renderYesterdayCarry(key);
+  }
+  if (document.getElementById('focusOverlay')?.classList.contains('open')) renderFocusView();
+  if (moved > 0) checkCarryForward();
+}
+
+function initDateRolloverWatch() {
+  setInterval(handleDateRollover, 60000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) handleDateRollover(); });
+  window.addEventListener('focus', handleDateRollover);
 }
 
 init();
