@@ -326,10 +326,11 @@ function renderPanelTodoItem(key, todo) {
   const recBadge = todo.isRec ? `<span class="recurring-badge">&#8635; ${todo.repeat || ''}</span>` : '';
   const noteInd = (!todo.isRec && todo.notes) ? '<span class="note-indicator">&#9998; note</span>' : '';
   const noteClick = !todo.isRec ? `onclick="app.toggleNotes('${key}',${todo.realIdx})"` : '';
+  const editBtn = todo.isRec ? '' : `<button class="edit-btn" onclick="event.stopPropagation();app.editTodoText('${key}',${todo.realIdx})" aria-label="Edit">&#9998;</button>`;
   const delBtn = todo.isRec
     ? `<button class="delete-btn" onclick="event.stopPropagation();app.deleteRecurring('${todo.id}')" aria-label="Delete">&#10005;</button>`
     : `<button class="delete-btn" onclick="event.stopPropagation();app.deleteTodoWithUndo('${key}',${todo.realIdx})" aria-label="Delete">&#10005;</button>`;
-  return `<div class="todo-item${todo.done ? ' done' : ''}" draggable="${!todo.isRec}" data-real-idx="${todo.realIdx}" data-key="${key}" ondragstart="app.startCrossDayDrag(event,'${key}',${todo.realIdx})"><input type="checkbox" ${todo.done ? 'checked' : ''} onchange="app.toggleTodo('${key}',${todo.realIdx},${todo.isRec},'${todo.id || ''}')" aria-label="${escapeHtml(todo.text)}"><div class="todo-item-content" ${noteClick}><span class="todo-text">${escapeHtml(todo.text)}</span><div class="todo-meta">${prioTag}${recBadge}${noteInd}<span>${timeStr}</span></div></div>${delBtn}</div>`;
+  return `<div class="todo-item${todo.done ? ' done' : ''}" draggable="${!todo.isRec}" data-real-idx="${todo.realIdx}" data-key="${key}" ondragstart="app.startCrossDayDrag(event,'${key}',${todo.realIdx})"><input type="checkbox" ${todo.done ? 'checked' : ''} onchange="app.toggleTodo('${key}',${todo.realIdx},${todo.isRec},'${todo.id || ''}')" aria-label="${escapeHtml(todo.text)}"><div class="todo-item-content" ${noteClick}><span class="todo-text">${escapeHtml(todo.text)}</span><div class="todo-meta">${prioTag}${recBadge}${noteInd}<span>${timeStr}</span></div></div>${editBtn}${delBtn}</div>`;
 }
 
 // --- Drag & Drop ---
@@ -449,6 +450,30 @@ window.app = {
     pushUndo(`"${result.removed.text.slice(0, 30)}" deleted`, () => { store.restoreTodo(result.key, result.index, result.removed); render(); if (selectedDate) { renderProgress(key); renderPanelTodoList(key); } });
   },
   deleteRecurring(id) { store.deleteRecurring(id); render(); if (selectedDate) { const key = dateKey(selectedDate); renderProgress(key); renderPanelTodoList(key); } },
+
+  // Inline edit of a normal todo's text
+  editTodoText(key, realIdx) {
+    const item = document.querySelector(`.todo-item[data-real-idx="${realIdx}"][data-key="${key}"]`);
+    if (!item) return;
+    const textSpan = item.querySelector('.todo-text');
+    if (!textSpan || item.querySelector('.todo-edit-input')) return;
+    const current = (store.todos[key] || []).filter(t => !t.recurringId)[realIdx]?.text || '';
+    const input = document.createElement('input');
+    input.className = 'todo-edit-input'; input.type = 'text'; input.maxLength = 500; input.value = current;
+    let done = false;
+    const commit = (save) => {
+      if (done) return; done = true;
+      if (save) store.editTodo(key, realIdx, input.value);
+      renderPanelTodoList(key); render();
+    };
+    input.onkeydown = ev => {
+      if (ev.key === 'Enter') { ev.preventDefault(); commit(true); }
+      else if (ev.key === 'Escape') { ev.preventDefault(); commit(false); }
+    };
+    input.onblur = () => commit(true);
+    textSpan.replaceWith(input);
+    input.focus(); input.select();
+  },
 
   // Notes
   toggleNotes(key, realIdx) {

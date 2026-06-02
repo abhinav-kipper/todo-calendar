@@ -78,6 +78,7 @@ todo-calendar/
 - Recurring todos (daily, weekdays, weekly)
 - Priority levels (low, medium, high) with color coding
 - Notes on todos (click to expand, auto-saves on blur)
+- Edit task text inline (pencil button in day panel turns the text into an input; Enter/blur saves, Esc cancels) via `store.editTodo`
 - Drag reorder within a day (panel)
 - Drag between days (panel → calendar, inbox → calendar, week items)
 - Quick-add (double-click day cell, inline input in week view, input in focus/inbox)

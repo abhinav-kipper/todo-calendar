@@ -238,6 +238,17 @@ export function restoreTodo(key, index, todo) {
   saveTodos();
 }
 
+export function editTodo(key, realIdx, text) {
+  const nri = [];
+  (todos[key] || []).forEach((t, i) => { if (!t.recurringId) nri.push(i); });
+  const ai = nri[realIdx];
+  if (ai === undefined) return;
+  const trimmed = String(text || '').trim();
+  if (!trimmed || todos[key][ai].text === trimmed) return;
+  todos[key][ai].text = trimmed;
+  saveTodos();
+}
+
 export function editRecurring(id, text) {
   const r = recurring.find(x => x.id === id);
   if (!r) return;
