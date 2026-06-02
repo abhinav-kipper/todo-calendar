@@ -1,4 +1,4 @@
-import { dateKey, escapeHtml, getRelativeDay, calculateStreak, getMonthStats, getOverdueTodos, generateId } from '../js/utils.js';
+import { dateKey, escapeHtml, getRelativeDay, calculateStreak, getMonthStats, getOverdueTodos, generateId, planCarryForward } from '../js/utils.js';
 
 let passed = 0, failed = 0;
 
@@ -100,6 +100,35 @@ test('getOverdueTodos', () => {
 
   const emptyOverdue = getOverdueTodos({}, 7);
   assert(emptyOverdue.length === 0, 'returns empty for no todos');
+});
+
+test('planCarryForward', () => {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const todayKey = dateKey(today);
+  const yKey = dateKey(new Date(today.getTime() - 86400000));
+  const oldKey = dateKey(new Date(today.getTime() - 5 * 86400000));
+  const tomorrowKey = dateKey(new Date(today.getTime() + 86400000));
+
+  const todos = {
+    [oldKey]: [{ text: 'old-undone', done: false }, { text: 'old-done', done: true }],
+    [yKey]: [{ text: 'y-undone', done: false }, { recurringId: 'r1', done: false }],
+    [todayKey]: [{ text: 'today-task', done: false }],
+    [tomorrowKey]: [{ text: 'future', done: false }],
+  };
+
+  const { todos: next, moved } = planCarryForward(todos, todayKey);
+  assert(moved === 2, 'moves both past undone tasks');
+  assert(next[todayKey].length === 3, 'today gains the two carried tasks');
+  assert(next[todayKey].some(t => t.text === 'old-undone') && next[todayKey].some(t => t.text === 'y-undone'), 'carried tasks land on today');
+  assert(next[oldKey].length === 1 && next[oldKey][0].done === true, 'completed past tasks stay put');
+  assert(next[yKey].length === 1 && next[yKey][0].recurringId === 'r1', 'recurring markers stay put');
+  assert(next[tomorrowKey].length === 1, 'future days are untouched');
+
+  const clean = planCarryForward({ [todayKey]: [{ text: 'x', done: false }] }, todayKey);
+  assert(clean.moved === 0, 'nothing to move when no past undone tasks');
+
+  const empty = planCarryForward({}, todayKey);
+  assert(empty.moved === 0 && Object.keys(empty.todos).length === 0, 'handles empty todos');
 });
 
 // --- Summary ---
