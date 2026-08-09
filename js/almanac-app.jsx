@@ -22,7 +22,7 @@ const PLANT_LINES = {
   done:  ["ALL DONE! you legend.", "petals everywhere 🌸", "we did it, today was a vibe"],
 };
 
-// ─── Drag ghost ───────────────────────────────────────────────────────────
+// ─── Drag ghost ───────────────────────────────────────────
 function useDragGhost() {
   const [drag, setDrag] = useState(null);
   useEffect(() => {
@@ -120,7 +120,7 @@ function EditableText({ text, editing, onSave, onCancel, tag = "div", className 
   );
 }
 
-// ─── Toast ────────────────────────────────────────────────────────────────
+// ─── Toast ────────────────────────────────────────────────
 function useToast() {
   const [toast, setToast] = useState(null);
   const timerRef = useRef(null);
@@ -133,7 +133,7 @@ function useToast() {
   return [toast, show];
 }
 
-// ─── Main App ─────────────────────────────────────────────────────────────
+// ─── Main App ───────────────────────────────────────────
 function App() {
   const [tweaks, setTweak] = useTweaks(TWEAK_DEFAULTS);
 
@@ -475,9 +475,17 @@ function App() {
   };
 
   // ─── Navigation ───
-  const goPrev = () => setCursor(d => new Date(d.getFullYear(), d.getMonth() - 1, 1));
-  const goNext = () => setCursor(d => new Date(d.getFullYear(), d.getMonth() + 1, 1));
-  const goToday = () => { setCursor(new Date(today.getFullYear(), today.getMonth(), 1)); setView("month"); };
+  // Step by a week in week view, by a month otherwise.
+  const goPrev = () => setCursor(d => view === "week"
+    ? new Date(d.getFullYear(), d.getMonth(), d.getDate() - 7)
+    : new Date(d.getFullYear(), d.getMonth() - 1, 1));
+  const goNext = () => setCursor(d => view === "week"
+    ? new Date(d.getFullYear(), d.getMonth(), d.getDate() + 7)
+    : new Date(d.getFullYear(), d.getMonth() + 1, 1));
+  const goToday = () => {
+    setCursor(new Date(today.getFullYear(), today.getMonth(), today.getDate()));
+    setView(v => v === "week" ? "week" : "month");
+  };
 
   // ─── Keyboard shortcuts ───
   useEffect(() => {
@@ -652,7 +660,7 @@ function App() {
           )}
           {view === "week" && (
             <WeekView
-              today={today} todos={todos}
+              cursor={cursor} today={today} todos={todos}
               toggleTask={toggleTask}
               openDayPanel={openDayPanel}
               beginDrag={beginDrag}
@@ -797,7 +805,7 @@ function App() {
   );
 }
 
-// ─── Confetti ─────────────────────────────────────────────────────────────
+// ─── Confetti ────────────────────────────────────────────────
 function burstConfetti() {
   const canvas = document.getElementById("confetti");
   if (!canvas) return;
@@ -835,7 +843,7 @@ function burstConfetti() {
   step();
 }
 
-// ─── TopBar ───────────────────────────────────────────────────────────────
+// ─── TopBar ────────────────────────────────────────────
 function TopBar({ cursor, view, setView, onPrev, onNext, onToday, onOpenInbox, onOpenFocus, onOpenPinHelper, onToggleDirection, direction, inboxCount, user, syncStatus, onSignIn, onSignOut, onExport, onImport }) {
   const subtitles = { A: "a sticker book of days", B: "calendar but make it 90s" };
   return (
@@ -849,11 +857,11 @@ function TopBar({ cursor, view, setView, onPrev, onNext, onToday, onOpenInbox, o
       </div>
       <div className="topbar-mid">
         <div className="month-nav">
-          <button onClick={onPrev} data-tip="Previous month (←)" aria-label="Previous month"><Icon.Chevron dir="left" /></button>
+          <button onClick={onPrev} data-tip={`Previous ${view === "week" ? "week" : "month"} (←)`} aria-label={`Previous ${view === "week" ? "week" : "month"}`}><Icon.Chevron dir="left" /></button>
           <div className="month-display">
             {MONTHS[cursor.getMonth()]} <span className="year">{cursor.getFullYear()}</span>
           </div>
-          <button onClick={onNext} data-tip="Next month (→)" aria-label="Next month"><Icon.Chevron dir="right" /></button>
+          <button onClick={onNext} data-tip={`Next ${view === "week" ? "week" : "month"} (→)`} aria-label={`Next ${view === "week" ? "week" : "month"}`}><Icon.Chevron dir="right" /></button>
           <button className="today-btn" onClick={onToday} data-tip="Jump back to today's month">Today</button>
         </div>
         <div className="view-switch">
@@ -893,7 +901,7 @@ function TopBar({ cursor, view, setView, onPrev, onNext, onToday, onOpenInbox, o
   );
 }
 
-// ─── QuickAddBar ──────────────────────────────────────────────────────────
+// ─── QuickAddBar ──────────────────────────────────────────
 function QuickAddBar({ onAdd, inputRef, today }) {
   const [text, setText] = useState("");
   const submit = () => { if (!text.trim()) return; const ok = onAdd(text); if (ok) setText(""); };
@@ -930,7 +938,7 @@ function QuickAddBar({ onAdd, inputRef, today }) {
   );
 }
 
-// ─── MobileTabBar ─────────────────────────────────────────────────────────
+// ─── MobileTabBar ────────────────────────────────────────
 function MobileTabBar({ view, setView, inboxCount, todayPending, focusOpen, setFocusOpen, closeDayPanel }) {
   const tabs = [
     { id: "today", label: "Today", icon: "☀", count: todayPending },
@@ -965,7 +973,7 @@ function MobileTabBar({ view, setView, inboxCount, todayPending, focusOpen, setF
   );
 }
 
-// ─── VibeStrip ────────────────────────────────────────────────────────────
+// ─── VibeStrip ─────────────────────────────────────────────
 function VibeStrip({ mood, affirmation, stats, streak }) {
   const moodSubs = {
     sleepy: "a fresh slate ✨", warming: "easing in, no rush", cruising: "a lil' rhythm going",
@@ -997,7 +1005,7 @@ function VibeStrip({ mood, affirmation, stats, streak }) {
   );
 }
 
-// ─── PlantSide ────────────────────────────────────────────────────────────
+// ─── PlantSide ─────────────────────────────────────────────
 function PlantSide({ progress, done, total, direction, monthStats, message, onPlantClick }) {
   const monthPct = monthStats.total ? Math.round((monthStats.done / monthStats.total) * 100) : 0;
   return (
@@ -1016,7 +1024,7 @@ function PlantSide({ progress, done, total, direction, monthStats, message, onPl
   );
 }
 
-// ─── TodayPanel ───────────────────────────────────────────────────────────
+// ─── TodayPanel ──────────────────────────────────────────
 function TodayPanel({ today, todos, toggleTask, addTask, deleteTask, quickMove, beginDrag, draggingId, editingId, startEdit, cancelEdit, editTask }) {
   const key = dateKey(today);
   const list = U.sortTasks(todos[key] || []);
@@ -1114,7 +1122,7 @@ function TodayRow({ t, dayKey, toggleTask, deleteTask, quickMove, beginDrag, dra
   );
 }
 
-// ─── MonthView ────────────────────────────────────────────────────────────
+// ─── MonthView ─────────────────────────────────────────────
 function MonthView({ cells, cursor, today, todos, openDayPanel, beginDrag, draggingId, toggleTask, addTask, heatmap }) {
   let maxPending = 1;
   if (heatmap) {
@@ -1216,9 +1224,9 @@ function DayCell({ dateKey: key, date, muted, isToday, weekend, list, visible, p
   );
 }
 
-// ─── WeekView ─────────────────────────────────────────────────────────────
-function WeekView({ today, todos, toggleTask, openDayPanel, beginDrag, draggingId, editingId, startEdit, cancelEdit, editTask }) {
-  const start = U.startOfWeek(today);
+// ─── WeekView ──────────────────────────────────────────────
+function WeekView({ cursor, today, todos, toggleTask, openDayPanel, beginDrag, draggingId, editingId, startEdit, cancelEdit, editTask }) {
+  const start = U.startOfWeek(cursor);
   const days = Array.from({ length: 7 }, (_, i) => { const d = new Date(start); d.setDate(start.getDate() + i); return d; });
   return (
     <div className="week-grid">
@@ -1293,7 +1301,7 @@ function WeekTaskRow({ t, dKey, toggleTask, beginDrag, draggingId, editingId, st
   );
 }
 
-// ─── InboxView ────────────────────────────────────────────────────────────
+// ─── InboxView ─────────────────────────────────────────────
 function InboxView({ inbox, addToInbox, toggleInbox, deleteInbox, beginDrag, draggingId, editingId, startEdit, cancelEdit, editInbox }) {
   const [text, setText] = useState("");
   const ref = useRef(null);
@@ -1355,7 +1363,7 @@ function InboxItemRow({ t, toggleInbox, deleteInbox, beginDrag, draggingId, edit
   );
 }
 
-// ─── DayPanel ─────────────────────────────────────────────────────────────
+// ─── DayPanel ────────────────────────────────────────────
 function DayPanel({ dayKey, todos, addTask, toggleTask, deleteTask, quickMove, close, navDay, draftPriority, setDraftPriority, draftRepeat, setDraftRepeat, draftText, setDraftText, inputFocused, setInputFocused, inputRef, beginDrag, draggingId, today, editingId, startEdit, cancelEdit, editTask }) {
   const open = !!dayKey;
   const date = dayKey ? parseKey(dayKey) : null;
@@ -1480,7 +1488,7 @@ function DayTaskRow({ t, dayKey, toggleTask, deleteTask, quickMove, beginDrag, d
   );
 }
 
-// ─── FocusOverlay ─────────────────────────────────────────────────────────
+// ─── FocusOverlay ──────────────────────────────────────────
 function FocusOverlay({ open, close, today, todos, toggleTask, editingId, startEdit, cancelEdit, editTask }) {
   const key = dateKey(today);
   const list = todos[key] || [];
@@ -1545,7 +1553,7 @@ function FocusTaskRow({ t, dayKey, toggleTask, editingId, startEdit, cancelEdit,
   );
 }
 
-// ─── PinWidgetModal ───────────────────────────────────────────────────────
+// ─── PinWidgetModal ────────────────────────────────────────
 function PinWidgetModal({ open, close }) {
   const [copied, setCopied] = useState(false);
   useEffect(() => {
@@ -1614,7 +1622,7 @@ function PinWidgetModal({ open, close }) {
   );
 }
 
-// ─── Mount ────────────────────────────────────────────────────────────────
+// ─── Mount ───────────────────────────────────────────────
 const root = ReactDOM.createRoot(document.getElementById("root"));
 root.render(<App />);
 
