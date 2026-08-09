@@ -1,0 +1,36 @@
+/* ════════════════════════════════════════════════════════════════════════
+   ALMANAC — LAYOUT FIXES (loaded after almanac.css)
+   Keeps long task text from blowing out calendar columns. Grid items default
+   to min-width:auto, so a long unbreakable string forces its 1fr column wider
+   and collapses the rest of the row. min-width:0 pins each column to its track;
+   text then clips (month) or wraps (week) inside its own cell.
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* Month grid — day cell can shrink to its 1fr track instead of stretching */
+.day { min-width: 0; }
+.day-tasks { min-width: 0; }
+
+/* Task chips clip with an ellipsis rather than widening the cell */
+.task-chip { min-width: 0; max-width: 100%; }
+.task-chip > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+/* Inline quick-add input stays inside the cell and scrolls internally */
+.day-quickadd {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* Week grid — column can shrink; long labels wrap instead of overflowing */
+.week-col { min-width: 0; }
+.week-task { min-width: 0; }
+.week-task-label {
+  min-width: 0;
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
