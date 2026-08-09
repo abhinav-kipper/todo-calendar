@@ -1,8 +1,9 @@
-const CACHE_NAME = 'almanac-v10';
+const CACHE_NAME = 'almanac-v11';
 const APP_SHELL = [
   '/todo-calendar/',
   '/todo-calendar/index.html',
   '/todo-calendar/almanac.css',
+  '/todo-calendar/almanac-fixes.css',
   '/todo-calendar/js/store-bridge.js',
   '/todo-calendar/js/store.js',
   '/todo-calendar/js/utils.js',
