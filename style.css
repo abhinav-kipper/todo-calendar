@@ -147,9 +147,9 @@ body {
 .calendar-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:4px; }
 
 .day-cell {
-  min-height:88px; background:var(--bg-secondary); border:1px solid var(--border);
+  min-height:88px; min-width:0; background:var(--bg-secondary); border:1px solid var(--border);
   border-radius:10px; padding:8px 9px; cursor:pointer;
-  transition:all 0.25s var(--spring); position:relative; overflow:visible;
+  transition:all 0.25s var(--spring); position:relative; overflow:hidden;
 }
 .day-cell:hover {
   background:var(--bg-tertiary); border-color:var(--accent-dim);
@@ -186,7 +186,7 @@ body {
 
 /* Quick-add */
 .quick-add-input {
-  width:calc(100% + 2px); margin:4px -1px 0; background:var(--bg-primary); border:1px solid var(--accent);
+  width:calc(100% + 2px); min-width:0; box-sizing:border-box; margin:4px -1px 0; background:var(--bg-primary); border:1px solid var(--accent);
   color:var(--text-primary); padding:5px 8px; border-radius:6px; font-size:0.67rem;
   outline:none; position:relative; z-index:2; box-shadow:0 0 12px var(--accent-glow);
   animation:scaleIn 0.15s var(--spring);
@@ -196,7 +196,7 @@ body {
 .week-view { display:grid; grid-template-columns:repeat(7,1fr); gap:4px; }
 .week-day-col {
   background:var(--bg-secondary); border:1px solid var(--border); border-radius:12px;
-  padding:12px; min-height:200px; max-height:70vh; display:flex; flex-direction:column;
+  padding:12px; min-width:0; min-height:200px; max-height:70vh; display:flex; flex-direction:column;
   transition:all 0.2s var(--smooth);
 }
 .week-day-col:hover { border-color:var(--border-hover); box-shadow:0 4px 16px var(--shadow); }
@@ -224,7 +224,7 @@ body {
   border:solid #fff; border-width:0 1.5px 1.5px 0; transform:rotate(45deg);
 }
 .week-todo-item.done .week-todo-text { text-decoration:line-through; color:var(--text-muted); }
-.week-todo-text { flex:1; color:var(--text-primary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; word-break:break-all; }
+.week-todo-text { flex:1; min-width:0; color:var(--text-primary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .week-todo-item .priority-dot { width:6px; height:6px; border-radius:50%; flex-shrink:0; }
 .week-add-input {
   width:100%; background:var(--bg-primary); border:1px solid var(--border);
