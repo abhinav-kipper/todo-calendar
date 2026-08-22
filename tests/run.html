@@ -9,7 +9,7 @@
   </style>
 </head>
 <body>
-  <h1>Todo Calendar - Test Runner</h1>
+  <h1>Almanac - Test Runner</h1>
   <pre id="output">Running tests...</pre>
   <script type="module">
     // Capture console output
@@ -22,6 +22,7 @@
 
     // Run tests
     await import('./utils.test.js');
+    await import('./knowledge.test.js');
 
     output.innerHTML = lines.join('\n');
   </script>

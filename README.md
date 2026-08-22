@@ -38,6 +38,30 @@ Live app: https://abhinav-kipper.github.io/todo-calendar/
 
 ---
 
+## ✎ Knowledge notebooks
+
+A second app at `/knowledge.html`, same look, same account, different job:
+somewhere to dump what you learn and have it come back tidy.
+
+- 📓 A notebook per subject — Dutch class, dance privates, anything
+- 🧠 **Brain dump box** — type or dictate; misspelled, half-remembered notes are the point
+- ✨ **Structure it** — an LLM splits one dump into clean cards, fixes the foreign
+  words, fills in term/translation/article (or count/weight/lead), tags and files them
+- 👀 **You review everything** before it's saved — untick, edit inline, duplicate warnings
+- 📜 The raw dump is kept on every card it produced, forever
+- 🗂 Sections, drag-and-drop between sections and notebooks, long-press menus
+- 🃏 Cards / List / Board / Timeline views
+- 💬 **Ask this notebook** — answers grounded in your own cards
+- ✓ **Check my sentence** — corrections with explanations, savable as a card
+- ◉ **Practice** — spaced repetition on starred cards, or an AI quiz
+- 📅 **Practice plan** → drops real tasks onto your Almanac calendar
+- 🔌 Bring your own free model: Gemini, Groq, OpenRouter, or Ollama running locally
+- 🔒 Your API key stays in your browser and is never synced
+
+Works completely without AI — it's a notebook first, an assistant second.
+
+---
+
 ## 🧠 Tech stack
 
 This project keeps things simple:
@@ -45,13 +69,13 @@ This project keeps things simple:
 - HTML
 - CSS
 - Vanilla JavaScript ES modules
+- React 18 + Babel standalone, loaded straight from a CDN (no build step)
 - Firebase Auth
 - Firebase Firestore
 - localStorage
 - Service Worker / PWA
 - Node.js local static server
 
-No React.  
 No Vite.  
 No bundler.  
 No npm dependency jungle. 🧘

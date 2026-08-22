@@ -887,6 +887,7 @@ function TopBar({ cursor, view, setView, onPrev, onNext, onToday, onOpenInbox, o
         <label className="iconbtn" data-tip="Restore from backup (.json)" aria-label="Import data" style={{cursor:'pointer'}}>
           ↑<input type="file" accept=".json" onChange={onImport} style={{display:'none'}} />
         </label>
+        <a className="iconbtn" href="knowledge.html" data-tip="Knowledge · your notebooks" aria-label="Knowledge notebooks" style={{ fontFamily: "var(--display)", fontSize: 16, textDecoration: "none" }}>✎</a>
         <button className="iconbtn" onClick={onOpenFocus} data-tip="Focus mode · just today (F)" aria-label="Focus mode"><Icon.Focus /></button>
         <button className="iconbtn" onClick={onOpenInbox} data-tip="Inbox · unscheduled tasks (I)" aria-label="Inbox">
           <Icon.Inbox />

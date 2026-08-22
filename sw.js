@@ -1,4 +1,4 @@
-const CACHE_NAME = 'almanac-v11';
+const CACHE_NAME = 'almanac-v12';
 const APP_SHELL = [
   '/todo-calendar/',
   '/todo-calendar/index.html',
@@ -12,6 +12,12 @@ const APP_SHELL = [
   '/todo-calendar/js/almanac-plant.jsx',
   '/todo-calendar/js/almanac-tweaks.jsx',
   '/todo-calendar/js/almanac-app.jsx',
+  '/todo-calendar/knowledge.html',
+  '/todo-calendar/knowledge.css',
+  '/todo-calendar/js/knowledge-core.js',
+  '/todo-calendar/js/knowledge-store.js',
+  '/todo-calendar/js/knowledge-ai.js',
+  '/todo-calendar/js/knowledge-app.jsx',
   '/todo-calendar/manifest.json',
   '/todo-calendar/icons/icon-192.svg',
   '/todo-calendar/icons/icon-512.svg'
@@ -45,6 +51,10 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
+
+  // Never intercept non-GET requests — Firestore writes and AI calls must go
+  // straight to the network.
+  if (event.request.method !== 'GET') return;
 
   // Network-first for Firebase/API calls (sync needs fresh data)
   if (FIREBASE_ORIGINS.some((origin) => url.origin === origin)) {
