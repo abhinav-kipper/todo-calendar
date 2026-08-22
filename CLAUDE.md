@@ -25,15 +25,22 @@ todo-calendar/
 │   ├── icon-192.png    # PNG fallback (generate via icons/generate.html)
 │   ├── icon-512.png    # PNG fallback (generate via icons/generate.html)
 │   └── generate.html   # Open in browser to generate PNG icons from SVG
+├── knowledge.html      # Knowledge route — notebooks for dumping/structuring what you learn
+├── knowledge.css       # Notebook-specific styles (sits on top of almanac.css tokens)
 ├── js/
 │   ├── app.js          # Main orchestrator: init, view routing, window.app API, all render functions
 │   ├── store.js        # State, Firebase, persistence, CRUD (todos, recurring, inbox)
 │   ├── utils.js        # Pure functions (dateKey, escapeHtml, stats, streak, overdue)
 │   ├── effects.js      # Confetti canvas animation, undo toast system
 │   ├── search.js       # Search overlay with fuzzy matching across all todos/notes/inbox
-│   └── shortcuts.js    # Keyboard shortcut handler (/, N, I, F, ?, Esc, arrows)
+│   ├── shortcuts.js    # Keyboard shortcut handler (/, N, I, F, ?, Esc, arrows)
+│   ├── knowledge-core.js   # Knowledge: pure logic (parsing, search, SRS, export) — fully tested
+│   ├── knowledge-store.js  # Knowledge: state, localStorage, Firestore, CRUD → window.Knowledge
+│   ├── knowledge-ai.js     # Knowledge: LLM providers + prompts → window.KnowledgeAI
+│   └── knowledge-app.jsx   # Knowledge: the whole React UI
 ├── tests/
-│   ├── utils.test.js   # Unit tests for pure functions (20+ assertions)
+│   ├── utils.test.js   # Unit tests for calendar pure functions (30+ assertions)
+│   ├── knowledge.test.js # Unit tests for knowledge-core.js (60+ assertions)
 │   └── run.html        # Browser-based test runner (open in browser to run)
 ├── server.js           # Local dev server (serves all static files + optional JSON API)
 ├── todos.json          # Local server data file (not needed for hosted version)
@@ -50,18 +57,34 @@ todo-calendar/
 - Drag-and-drop uses `draggedTodo` variable in app.js for cross-day moves
 
 ### Storage Layer
-1. **Firebase Firestore** - signed-in users (`users/{uid}` document with `{todos, recurring}`)
+1. **Firebase Firestore**
+   - `users/{uid}` - `{todos, recurring}` (calendar)
+   - `knowledge/{uid}` - `{notebooks, entries, dumps}` (Knowledge route, separate doc on
+     purpose: the calendar writes `users/{uid}` with `.set()`, which would clobber it)
 2. **localStorage** keys:
    - `todo-calendar-data` - todos object (keyed by date string YYYY-MM-DD)
    - `todo-calendar-recurring` - recurring todos array
    - `todo-calendar-inbox` - undated inbox items
    - `todo-cal-theme` - "dark" or "light"
+   - `almanac-knowledge-notebooks` / `-entries` / `-dumps` - Knowledge data
+   - `almanac-knowledge-prefs` - view, sort, last notebook, sound
+   - `almanac-knowledge-ai` - AI provider + key. **Device-local, never synced.**
 
 ### Firebase Config
 - Project: `todo-calendar-dde90`
 - Console: https://console.firebase.google.com/project/todo-calendar-dde90
 - Auth: Google Sign-in (popup flow)
-- Firestore rules: `allow read, write: if request.auth != null && request.auth.uid == userId`
+- Firestore rules (the Knowledge collection needs its own match block):
+  ```
+  match /users/{userId} {
+    allow read, write: if request.auth != null && request.auth.uid == userId;
+  }
+  match /knowledge/{userId} {
+    allow read, write: if request.auth != null && request.auth.uid == userId;
+  }
+  ```
+  Without the second block the Knowledge route still works — it just stays on
+  localStorage and shows "Offline" instead of "Synced".
 - Authorized domains: `abhinav-kipper.github.io`, `localhost`
 - API key is embedded in store.js (normal for client-side Firebase - security via Firestore rules)
 
@@ -95,7 +118,63 @@ todo-calendar/
 - Export/Import JSON backup
 - Google Sign-in for cross-device cloud sync
 
-### Design
+## Knowledge route (`knowledge.html`)
+
+A second app on its own URL — `/todo-calendar/knowledge.html` — sharing the
+Almanac's design kit, Firebase project and interaction language, but with its
+own data and its own hash router (`#/`, `#/n/<notebookId>`).
+
+Built for capturing things learned in a class or a private lesson: you dump
+half-remembered, misspelled notes, an LLM turns them into clean filed cards,
+and you practise them. It is fully usable with no AI configured.
+
+### Flow
+1. **Dump** — a big always-visible box per notebook (`D` to focus), plus
+   dictation via the Web Speech API in the notebook's language.
+2. **Structure** — the LLM splits one dump into atomic cards, fixes phonetic
+   spellings, fills structured fields, tags them and proposes a section.
+3. **Review** — nothing is saved until you accept it. Untick cards, edit
+   titles/bodies inline, see near-duplicate warnings. "Discard cards, keep raw"
+   always available. The original dump is stored on every card it produced.
+4. **Tidy** — drag between sections/notebooks, long-press or right-click for the
+   action sheet, double-click any title or body to edit.
+5. **Practise** — star a card to add it to an SM-2-lite rotation, or generate an
+   AI quiz. Push practice tasks onto the calendar.
+
+### Concepts
+- **Notebook** — one subject. Has a `kind` (`language` / `dance` / `general`)
+  that decides starter sections, card types and the AI persona; plus `topic`
+  (free text: "Dutch, A2, evening class") and `aiNotes` (standing instructions,
+  e.g. "always give the article and plural"). Both are injected into every prompt
+  — this is the main quality lever.
+- **Entry (card)** — `{type, title, body, fields, tags, raw, sectionId, lessonDate, srs}`.
+  `fields` is the structured part (term/translation/article, or count/weight/lead).
+  `raw` is what you originally dumped and is never overwritten.
+- **Section** — a chapter inside a notebook, and a drop target.
+- **Dump** — the raw capture record, kept so a failed AI call never loses text.
+
+### Views
+Cards (grid) · List (compact rows) · Board (kanban by section, drag to file) ·
+Timeline (grouped by lesson date). Plus Ask (chat grounded in the notebook),
+Practice, Check-my-sentence (language notebooks) and Practice plan.
+
+### AI layer (`js/knowledge-ai.js`)
+Provider-agnostic, bring-your-own-key, all free-tier friendly:
+Gemini (default), Groq, OpenRouter, Ollama (local, fully offline), or any
+OpenAI-compatible endpoint. Two request shapes (Gemini-native and
+`/chat/completions`) cover all of them. Keys live in localStorage on that device
+only and are never written to Firestore. Responses are parsed with
+`extractJson`, which digs JSON out of prose and code fences.
+
+Adding an operation: write the prompt + parser in `knowledge-ai.js`, then a
+review UI in `knowledge-app.jsx` — never let a model write to the store directly.
+
+### Calendar bridge
+`Knowledge.sendToAlmanac(text, dayKey, priority)` re-reads the calendar from
+Firestore, appends the task and saves, so a stale in-memory copy can't clobber
+the cloud. Used by "Practise on a day" and by "Practice plan".
+
+## Design
 - Custom penguin mascot favicon (SVG, visible in browser tab)
 - Glassmorphism (backdrop-filter blur on cards/toolbar)
 - Spring cubic-bezier animations on all interactions
@@ -128,7 +207,7 @@ Server serves all static files (HTML, CSS, JS, tests) and optionally the JSON AP
 Upload all files to the GitHub repo manually (no git CLI configured for personal GitHub on this machine due to corporate network). GitHub Pages serves from `main` branch root. ES modules work without a bundler.
 
 **Important:** When deploying, upload these files:
-- `index.html`, `style.css`
+- `index.html`, `knowledge.html`, `style.css`, `almanac.css`, `almanac-fixes.css`, `knowledge.css`
 - `manifest.json`, `sw.js`
 - `icons/` folder (SVG icons, plus PNGs if generated)
 - `js/` folder (all .js files)
@@ -138,13 +217,37 @@ Do NOT upload: `server.js`, `todos.json`, `node_modules`, `CLAUDE.md`
 
 ## Testing
 
-- Open `http://localhost:3847/tests/run.html` in browser
-- Tests cover: dateKey, escapeHtml, getRelativeDay, generateId, calculateStreak, getMonthStats, getOverdueTodos
+- Open `http://localhost:3847/tests/run.html` in browser (runs both suites)
+- To click through the app with no network (CDN scripts blocked), vendor the
+  libs once and generate offline copies of the pages — both are gitignored:
+  ```bash
+  mkdir -p vendor && cd vendor
+  curl -sSLO https://unpkg.com/react@18.3.1/umd/react.production.min.js
+  curl -sSLO https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js
+  curl -sSL -o babel.min.js https://unpkg.com/@babel/standalone@7.29.0/babel.min.js
+  for f in firebase-app-compat firebase-auth-compat firebase-firestore-compat; do
+    curl -sSL -o $f.js https://www.gstatic.com/firebasejs/10.12.0/$f.js; done
+  cd .. && for src in index knowledge; do
+    sed -e 's#https://unpkg.com/react@18.3.1/umd/#vendor/#' \
+        -e 's#https://unpkg.com/react-dom@18.3.1/umd/#vendor/#' \
+        -e 's#https://unpkg.com/@babel/standalone@7.29.0/#vendor/#' \
+        -e 's#https://www.gstatic.com/firebasejs/10.12.0/#vendor/#' \
+        $src.html > $src.test.html; done
+  ```
+- Calendar tests cover: dateKey, escapeHtml, getRelativeDay, generateId, calculateStreak, getMonthStats, getOverdueTodos, planCarryForward
+- Knowledge tests cover: slug, extractJson, parseEntryDrafts, sanitizeEntry, search, similarity/duplicates, reorder, SRS scheduling, grouping, markdown export
 - All tests are pure (no DOM, no Firebase mocking needed)
 - Add new test files in `tests/` and import them in `run.html`
 
 ## Adding New Features
 
+### Knowledge route
+1. Pure logic → `js/knowledge-core.js` (with tests in `tests/knowledge.test.js`)
+2. State/persistence → `js/knowledge-store.js` (export it on the `Knowledge` object)
+3. Prompts → `js/knowledge-ai.js`
+4. UI → `js/knowledge-app.jsx`, styles → `knowledge.css` (reuse almanac.css tokens)
+
+### Calendar
 1. Pure logic → `js/utils.js` (with tests in `tests/utils.test.js`)
 2. State/persistence → `js/store.js` (export new functions)
 3. UI rendering → `js/app.js` (add render function + expose via `window.app`)
@@ -153,6 +256,12 @@ Do NOT upload: `server.js`, `todos.json`, `node_modules`, `CLAUDE.md`
 6. Keyboard shortcut → `js/shortcuts.js`
 
 ## Known Issues / TODO
+- Knowledge: the AI provider key sits in localStorage, visible to anyone with the
+  device / devtools. Fine for a personal tool with a free-tier key; restrict the
+  key by referrer in the provider console if that matters.
+- Knowledge: cloud sync is one Firestore document per user, so it stops syncing
+  (and says so) past ~700KB. Thousands of cards before that becomes real.
+- Knowledge: dictation uses the Web Speech API — Chrome and Safari only.
 - GitHub Pages deployment is manual (upload via web UI) since git SSH/HTTPS is blocked on corporate network
 - Firestore rules are locked down (no longer test mode) - no expiration concerns
 - Inbox data is localStorage-only (not synced to Firebase) - could be added to Firestore document

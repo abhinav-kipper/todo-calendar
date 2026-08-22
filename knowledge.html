@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en" data-direction="B">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Knowledge ✎ Almanac notebooks</title>
+
+<!-- PWA -->
+<link rel="manifest" href="manifest.json" />
+<meta name="theme-color" content="#FAF3F8" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="apple-mobile-web-app-title" content="Knowledge" />
+<link rel="apple-touch-icon" href="icons/icon-192.svg" />
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect x='10' y='6' width='80' height='88' rx='12' fill='%23F7E1A0' stroke='%233D2E5C' stroke-width='5'/%3E%3Cpath d='M28 6v88' stroke='%233D2E5C' stroke-width='5'/%3E%3Cpath d='M44 32h32M44 50h32M44 68h20' stroke='%233D2E5C' stroke-width='5' stroke-linecap='round'/%3E%3C/svg%3E" />
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Caveat:wght@500;700&family=Geist+Mono:wght@400;500&display=swap" />
+
+<!-- Shared design kit with the calendar, plus the notebook-specific styles -->
+<link rel="stylesheet" href="almanac.css" />
+<link rel="stylesheet" href="almanac-fixes.css" />
+<link rel="stylesheet" href="knowledge.css" />
+
+<style>
+  #confetti {
+    position: fixed; inset: 0;
+    width: 100vw; height: 100vh;
+    pointer-events: none;
+    z-index: 100;
+  }
+  @keyframes shrink {
+    from { transform: scaleX(1); }
+    to   { transform: scaleX(0); }
+  }
+</style>
+
+<!-- Firebase (same project as the calendar; must load before the store) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+</head>
+<body>
+  <div id="root"></div>
+  <canvas id="confetti"></canvas>
+
+  <!-- React 18 -->
+  <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin="anonymous"></script>
+
+  <!-- Sound engine (plain JS, no modules) -->
+  <script src="js/almanac-sounds.js"></script>
+
+  <!-- ES modules: knowledge-store pulls in knowledge-core and knowledge-ai and
+       exposes window.Knowledge / window.KCore / window.KnowledgeAI -->
+  <script type="module" src="js/knowledge-store.js"></script>
+
+  <!-- Shared JSX helpers (window.U, Icon, Tickbox), then the app -->
+  <script type="text/babel" src="js/almanac-utils.jsx"></script>
+  <script type="text/babel" src="js/knowledge-app.jsx"></script>
+
+  <!-- PWA: register service worker -->
+  <script>
+    if ("serviceWorker" in navigator && location.protocol !== "blob:" && location.protocol !== "file:") {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("sw.js").catch(() => {});
+      });
+    }
+  </script>
+</body>
+</html>

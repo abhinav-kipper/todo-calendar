@@ -19,15 +19,19 @@ export function setOnDataChange(fn) { onDataChange = fn; }
 export function getCurrentUser() { return currentUser; }
 
 // --- Firebase init ---
+// Shared with the Knowledge route (js/knowledge-store.js) so the config only
+// ever lives in one place.
+export const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyAMWjbYB6-uWEDHLIXc4wDUmT23vxor2kk",
+  authDomain: "todo-calendar-dde90.firebaseapp.com",
+  projectId: "todo-calendar-dde90",
+  storageBucket: "todo-calendar-dde90.firebasestorage.app",
+  messagingSenderId: "791175432633",
+  appId: "1:791175432633:web:8a95bfd236fe74f2b10e68"
+};
+
 export function initFirebase() {
-  firebase.initializeApp({
-    apiKey: "AIzaSyAMWjbYB6-uWEDHLIXc4wDUmT23vxor2kk",
-    authDomain: "todo-calendar-dde90.firebaseapp.com",
-    projectId: "todo-calendar-dde90",
-    storageBucket: "todo-calendar-dde90.firebasestorage.app",
-    messagingSenderId: "791175432633",
-    appId: "1:791175432633:web:8a95bfd236fe74f2b10e68"
-  });
+  if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
   auth = firebase.auth();
   db = firebase.firestore();
 }

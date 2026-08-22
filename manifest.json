@@ -20,6 +20,13 @@
       "description": "Just today's tasks — perfect for a pinned window",
       "url": "/todo-calendar/?widget=1",
       "icons": [{ "src": "icons/icon-192.svg", "sizes": "192x192", "type": "image/svg+xml" }]
+    },
+    {
+      "name": "Knowledge notebooks",
+      "short_name": "Knowledge",
+      "description": "Dump and tidy what you're learning",
+      "url": "/todo-calendar/knowledge.html",
+      "icons": [{ "src": "icons/icon-192.svg", "sizes": "192x192", "type": "image/svg+xml" }]
     }
   ]
 }

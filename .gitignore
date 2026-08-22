@@ -1,3 +1,6 @@
 vendor/
 node_modules/
 todos.json
+
+# local test copies (generated, see CLAUDE.md)
+*.test.html
