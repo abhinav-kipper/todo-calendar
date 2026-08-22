@@ -169,6 +169,18 @@ only and are never written to Firestore. Responses are parsed with
 Adding an operation: write the prompt + parser in `knowledge-ai.js`, then a
 review UI in `knowledge-app.jsx` — never let a model write to the store directly.
 
+Two traps worth knowing about, both handled in `callGemini` / `readJson`:
+- **Gemini 2.5 thinks by default and its thinking tokens come out of
+  `maxOutputTokens`.** Left alone, a long dump burns the budget reasoning and
+  returns nothing or half a JSON object, after a long wait. `thinkingFor()`
+  sets `thinkingBudget: 0` for 2.5 Flash (128 for Pro, its minimum); the budget
+  is 8192. Don't remove that without raising the budget a lot.
+- **A truncated reply parses "successfully".** `extractJson` returns the first
+  balanced fragment it finds — one card out of twelve — which looks fine. So
+  every operation reads the reply twice (plain and `repairJson`, which closes
+  the open braces at the last complete value) and keeps whichever is actually
+  usable. When the salvage path fires, the review sheet says so.
+
 ### Calendar bridge
 `Knowledge.sendToAlmanac(text, dayKey, priority)` re-reads the calendar from
 Firestore, appends the task and saves, so a stale in-memory copy can't clobber

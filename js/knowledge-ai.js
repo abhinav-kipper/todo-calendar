@@ -7,7 +7,7 @@
 // text you run them on) go to that provider, which is the trade for free
 // hosted inference. Ollama keeps everything on your machine.
 
-import { extractJson, parseEntryDrafts, buildContextDigest, entryToPlainText, kindMeta } from './knowledge-core.js';
+import { extractJson, repairJson, parseEntryDrafts, buildContextDigest, entryToPlainText, kindMeta } from './knowledge-core.js';
 
 export const PROVIDERS = {
   gemini: {
@@ -48,7 +48,9 @@ export const PROVIDERS = {
 export function providerMeta(id) { return PROVIDERS[id] || PROVIDERS.gemini; }
 
 // ── low-level call ───────────────────────────────────────────────────────
-async function callLLM(cfg, { system, user, json = false, temperature = 0.3, maxTokens = 4096 }) {
+// Returns { text, truncated }. `truncated` means the model hit its output limit
+// mid-answer — the caller decides whether to salvage or to complain.
+async function callLLM(cfg, { system, user, json = false, temperature = 0.3, maxTokens = 8192 }) {
   const meta = providerMeta(cfg.provider);
   const endpoint = (cfg.endpoint || meta.endpoint || '').trim();
   const model = (cfg.model || meta.models[0] || '').trim();
@@ -85,6 +87,17 @@ async function fetchJson(url, options, label) {
   return parsed;
 }
 
+// Gemini 2.5 models think before answering, and those thinking tokens come out
+// of the same maxOutputTokens budget — leave it on and a long dump burns the
+// whole budget reasoning, then returns nothing or a half-written JSON object.
+// We're asking for structured extraction, not reasoning, so turn it off.
+function thinkingFor(model) {
+  const m = String(model);
+  if (/2\.5-flash/.test(m)) return { thinkingConfig: { thinkingBudget: 0 } };
+  if (/2\.5-pro/.test(m)) return { thinkingConfig: { thinkingBudget: 128 } };  // pro can't go to 0
+  return {};
+}
+
 async function callGemini({ endpoint, model, apiKey, system, user, json, temperature, maxTokens }) {
   const url = `${endpoint.replace(/\/$/, '')}/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
   const body = {
@@ -93,19 +106,25 @@ async function callGemini({ endpoint, model, apiKey, system, user, json, tempera
     generationConfig: {
       temperature,
       maxOutputTokens: maxTokens,
+      ...thinkingFor(model),
       ...(json ? { responseMimeType: 'application/json' } : {}),
     },
   };
   const data = await fetchJson(url, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
   }, 'Gemini');
-  const parts = data?.candidates?.[0]?.content?.parts || [];
+  const candidate = data?.candidates?.[0];
+  const parts = candidate?.content?.parts || [];
   const out = parts.map((p) => p.text || '').join('').trim();
+  const finish = candidate?.finishReason;
   if (!out) {
-    const reason = data?.promptFeedback?.blockReason || data?.candidates?.[0]?.finishReason;
+    const reason = data?.promptFeedback?.blockReason || finish;
+    if (reason === 'MAX_TOKENS') {
+      throw new AiError('Gemini used its whole output budget before writing anything. Try a shorter dump, or a model without thinking enabled.', 'truncated');
+    }
     throw new AiError(reason ? `Gemini returned nothing (${reason}).` : 'Gemini returned nothing.', 'empty');
   }
-  return out;
+  return { text: out, truncated: finish === 'MAX_TOKENS' };
 }
 
 async function callOpenAiCompatible({ endpoint, model, apiKey, system, user, json, temperature, maxTokens }) {
@@ -117,13 +136,25 @@ async function callOpenAiCompatible({ endpoint, model, apiKey, system, user, jso
     ...(json ? { response_format: { type: 'json_object' } } : {}),
   };
   const data = await fetchJson(endpoint, { method: 'POST', headers, body: JSON.stringify(body) }, 'The model');
-  const out = data?.choices?.[0]?.message?.content;
+  const choice = data?.choices?.[0];
+  const out = choice?.message?.content;
   if (!out) throw new AiError('The model returned nothing.', 'empty');
-  return String(out).trim();
+  return { text: String(out).trim(), truncated: choice?.finish_reason === 'length' };
 }
 
 export class AiError extends Error {
   constructor(message, code) { super(message); this.name = 'AiError'; this.code = code || 'unknown'; }
+}
+
+// A truncated reply is a trap for a plain parse: extractJson happily returns the
+// first balanced fragment it finds — one card out of twelve — which looks like
+// success. So try both readings and keep whichever actually has what we need.
+function readJson(text, usable) {
+  const direct = extractJson(text);
+  if (usable(direct)) return { data: direct, salvaged: false };
+  const repaired = repairJson(text);
+  if (usable(repaired)) return { data: repaired, salvaged: true };
+  return { data: direct || repaired || null, salvaged: false };
 }
 
 // ── prompt building ──────────────────────────────────────────────────────
@@ -153,7 +184,9 @@ Hard rules:
 - Preserve every fact in the dump. Never invent facts the dump does not contain or imply.
 - If a foreign word was clearly written phonetically, correct the spelling and note the original in the body as: heard as "<original>".
 - If something is ambiguous or you are unsure, keep it and add a short "unsure:" note rather than dropping or guessing.
-- Split into atomic cards: one idea per card. Aim for 1-10 cards, never more than 12.
+- Split into atomic cards: one idea per card. Cover every distinct point in the
+  dump — never drop one to save space. A long dump means more cards, not fuller
+  ones: keep each body terse. Hard ceiling of 20 cards.
 - Titles are short (max 8 words). Bodies are 1-4 short sentences or bullet lines. No markdown headings.
 - Write in clear plain English, second person, keeping the learner's own wording where it is already good.
 - Output JSON only. No prose before or after.`;
@@ -174,13 +207,32 @@ Return JSON shaped exactly like:
 "tags" are 1-4 lowercase keywords.
 ${fieldGuide(notebook.kind)}
 ${HOUSE_RULES}`;
-  const out = await callLLM(cfg, { system, user: `Here is the dump:\n\n"""\n${text}\n"""`, json: true, temperature: 0.25 });
-  const parsed = extractJson(out);
-  const drafts = parseEntryDrafts(parsed, notebook.id);
-  if (!drafts.length) throw new AiError('The model did not return any usable cards. Try again, or save the dump raw.', 'empty');
+  const { text: out, truncated } = await callLLM(cfg, {
+    system, user: `Here is the dump:\n\n"""\n${text}\n"""`, json: true, temperature: 0.25,
+  });
+
+  // A cut-off reply still holds every card the model finished writing.
+  let parsed = extractJson(out);
+  let drafts = parseEntryDrafts(parsed, notebook.id);
+  let salvaged = false;
+  const repaired = repairJson(out);
+  const repairedDrafts = parseEntryDrafts(repaired, notebook.id);
+  if (repairedDrafts.length > drafts.length) {
+    parsed = repaired; drafts = repairedDrafts; salvaged = true;
+  }
+  if (!drafts.length) {
+    throw new AiError(truncated || salvaged
+      ? 'The reply was cut off before a single card was complete. Try dumping half of it at a time.'
+      : 'The model did not return any usable cards. Try again, or save the dump raw.',
+      truncated ? 'truncated' : 'empty');
+  }
   const raw = Array.isArray(parsed?.entries) ? parsed.entries : [];
   drafts.forEach((d, i) => { d._sectionTitle = raw[i]?.sectionTitle || ''; });
-  return { summary: String(parsed?.summary || '').slice(0, 300), drafts };
+  return {
+    summary: String(parsed?.summary || '').slice(0, 300),
+    drafts,
+    truncated: truncated || salvaged,
+  };
 }
 
 // Rewrite a single card: fix language, tighten, add the missing structured bits.
@@ -196,8 +248,8 @@ Improve clarity, fix spelling and grammar (especially foreign words), fill in ob
 ${fieldGuide(notebook.kind)}
 ${HOUSE_RULES}`;
   const user = `${instruction ? `The learner asks: ${instruction}\n\n` : ''}Current card:\n${entryToPlainText(entry)}${entry.raw ? `\n\nOriginal dump it came from:\n"""\n${entry.raw}\n"""` : ''}`;
-  const out = await callLLM(cfg, { system, user, json: true, temperature: 0.3 });
-  const data = extractJson(out);
+  const { text: out } = await callLLM(cfg, { system, user, json: true, temperature: 0.3 });
+  const { data } = readJson(out, (d) => d && (d.title || d.body || d.fields));
   if (!data || typeof data !== 'object') throw new AiError('Could not read the improved card.', 'parse');
   return {
     patch: {
@@ -219,8 +271,8 @@ ${notebookBrief(notebook)}
 Return JSON shaped exactly like:
 {"corrected":"the fixed version","natural":"how a native would more likely say it","issues":[{"wrong":"...","right":"...","why":"one short sentence"}],"verdict":"one encouraging sentence"}
 If the attempt is already correct, return it unchanged with an empty issues array. Output JSON only.`;
-  const out = await callLLM(cfg, { system, user: `Attempt:\n"""\n${text}\n"""`, json: true, temperature: 0.2 });
-  const data = extractJson(out);
+  const { text: out } = await callLLM(cfg, { system, user: `Attempt:\n"""\n${text}\n"""`, json: true, temperature: 0.2 });
+  const { data } = readJson(out, (d) => d && d.corrected);
   if (!data) throw new AiError('Could not read the correction.', 'parse');
   return {
     corrected: String(data.corrected || ''),
@@ -240,7 +292,8 @@ Answer from the notes below. If the notes don't cover it, say so in one line, th
 Be concise: a short paragraph or a few bullet lines. Plain text, no markdown headings. Quote the learner's own card titles when relevant.`;
   const convo = history.slice(-6).map((m) => `${m.role === 'user' ? 'Learner' : 'You'}: ${m.text}`).join('\n');
   const user = `Notes:\n"""\n${digest || '(this notebook is empty)'}\n"""\n${convo ? `\nEarlier in this conversation:\n${convo}\n` : ''}\nQuestion: ${question}`;
-  return await callLLM(cfg, { system, user, json: false, temperature: 0.4, maxTokens: 1200 });
+  const { text } = await callLLM(cfg, { system, user, json: false, temperature: 0.4, maxTokens: 2048 });
+  return text;
 }
 
 // Generate a quick quiz from a set of cards.
@@ -252,8 +305,8 @@ ${notebookBrief(notebook)}
 Return JSON shaped exactly like:
 {"questions":[{"q":"...","a":"...","hint":"...","cardTitle":"the note it came from"}]}
 Ask ${count} questions, only about material present in the notes. Mix recall and application. Output JSON only.`;
-  const out = await callLLM(cfg, { system, user: `Notes:\n"""\n${digest}\n"""`, json: true, temperature: 0.5 });
-  const data = extractJson(out);
+  const { text: out } = await callLLM(cfg, { system, user: `Notes:\n"""\n${digest}\n"""`, json: true, temperature: 0.5 });
+  const { data } = readJson(out, (d) => Array.isArray(d?.questions) && d.questions.length);
   const list = Array.isArray(data?.questions) ? data.questions : [];
   if (!list.length) throw new AiError('No questions came back — add a few more cards first.', 'empty');
   return list.slice(0, 20).map((q) => ({
@@ -270,8 +323,8 @@ ${notebookBrief(notebook)}
 Return JSON shaped exactly like:
 {"intro":"one sentence","tasks":[{"day":1,"text":"a concrete 5-15 minute practice task","why":"the card it drills"}]}
 Cover ${days} days, one to two tasks per day, drawn only from the notes. Tasks must be specific and physically doable. Output JSON only.`;
-  const out = await callLLM(cfg, { system, user: `Notes:\n"""\n${digest}\n"""`, json: true, temperature: 0.5 });
-  const data = extractJson(out);
+  const { text: out } = await callLLM(cfg, { system, user: `Notes:\n"""\n${digest}\n"""`, json: true, temperature: 0.5 });
+  const { data } = readJson(out, (d) => Array.isArray(d?.tasks) && d.tasks.length);
   const tasks = Array.isArray(data?.tasks) ? data.tasks : [];
   if (!tasks.length) throw new AiError('No plan came back — try again in a moment.', 'empty');
   return {
@@ -284,8 +337,8 @@ Cover ${days} days, one to two tasks per day, drawn only from the notes. Tasks m
 
 // One cheap round-trip so settings can say "working" instead of "probably".
 export async function testConnection(cfg) {
-  const out = await callLLM(cfg, {
-    system: 'Reply with the single word: ok', user: 'ping', json: false, temperature: 0, maxTokens: 16,
+  const { text: out } = await callLLM(cfg, {
+    system: 'Reply with the single word: ok', user: 'ping', json: false, temperature: 0, maxTokens: 512,
   });
   return String(out).toLowerCase().includes('ok');
 }

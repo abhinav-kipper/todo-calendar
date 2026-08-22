@@ -1,5 +1,5 @@
 import {
-  slug, normalizeTag, extractJson, parseEntryDrafts, sanitizeEntry, makeNotebook, makeEntry,
+  slug, normalizeTag, extractJson, repairJson, parseEntryDrafts, sanitizeEntry, makeNotebook, makeEntry,
   scoreEntry, searchEntries, similarity, findDuplicates, sortEntries, reorder,
   srsInit, srsReview, addDays, isDue, dueEntries, groupBy, buildContextDigest,
   notebookToMarkdown, entryToPlainText, typeMeta, kindMeta, payloadSize,
@@ -36,6 +36,24 @@ test('extractJson', () => {
   assert(Array.isArray(extractJson('[{"a":1}]')), 'handles top-level arrays');
   assert(extractJson('no json here') === null, 'returns null when there is none');
   assert(extractJson(null) === null, 'survives non-strings');
+});
+
+test('repairJson', () => {
+  // What a reply cut off by the model's output limit actually looks like.
+  const cut = '{"summary":"s","entries":[{"title":"a"},{"title":"b"},{"title":"c is half writ';
+  const fixed = repairJson(cut);
+  assert(fixed.entries.length === 2, 'keeps every card that was finished');
+  assert(fixed.summary === 's', 'keeps the fields written before the cut');
+  assert(repairJson('{"entries":[{"t":"x"},').entries.length === 1, 'handles a cut on a comma');
+  const nested = repairJson('{"e":[{"t":"x","f":{"a":"b"}},{"t":"y","f":{"c"');
+  assert(nested.e.length === 2, 'unwinds nested objects, keeping the partial card');
+  assert(nested.e[1].t === 'y' && nested.e[1].f === undefined, 'drops only the half-written field');
+  assert(repairJson('{"t":"a }brace{ inside a string') === null, 'never closes on a brace that is inside a string');
+  assert(repairJson('{"a":"x }y{ z","b":"cut off her').a === 'x }y{ z', 'recovers fields written before such a string');
+  assert(repairJson('{"a":1}').a === 1, 'passes intact json straight through');
+  assert(repairJson('no json at all') === null, 'gives up on garbage');
+  assert(repairJson(null) === null, 'survives non-strings');
+  assert(parseEntryDrafts(repairJson(cut), 'nb1').length === 2, 'salvaged drafts survive the parser');
 });
 
 test('parseEntryDrafts', () => {

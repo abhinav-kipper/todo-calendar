@@ -387,9 +387,9 @@ function App() {
     setBusy("dump");
     const dump = window.Knowledge.addDump(notebook.id, text, "pending");
     try {
-      const { summary, drafts } = await window.KnowledgeAI.structure(aiCfg, { text, notebook });
+      const { summary, drafts, truncated } = await window.KnowledgeAI.structure(aiCfg, { text, notebook });
       drafts.forEach((d) => { d.raw = text.trim(); d.lessonDate = today; });
-      setModal({ type: "review", drafts, summary, dumpId: dump.id, sourceText: text.trim() });
+      setModal({ type: "review", drafts, summary, truncated, dumpId: dump.id, sourceText: text.trim() });
       sound("chime");
       return true;
     } catch (e) {
@@ -1136,6 +1136,14 @@ function ReviewSheet({ modal, close, notebook, entries, commitDrafts, showToast 
           Keep {kept.length} card{kept.length === 1 ? "" : "s"} →
         </button>
       </>}>
+      {modal.truncated && (
+        <div className="k-banner warn">
+          ✂️ <span className="k-spacer">
+            The model ran out of room mid-answer, so these are the cards it finished.
+            Your raw dump is kept whole — dump the rest in a second pass to catch anything missing.
+          </span>
+        </div>
+      )}
       {modal.summary && <div className="review-summary">📝 {modal.summary}</div>}
       <div className="draft-list">
         {drafts.map((d) => {

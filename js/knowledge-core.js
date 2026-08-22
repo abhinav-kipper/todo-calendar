@@ -198,6 +198,58 @@ function tryParse(s) {
   try { return JSON.parse(s); } catch { return undefined; }
 }
 
+// Last-resort recovery for a reply that was cut off mid-JSON (the model hit its
+// output limit). Walks back to the last complete value, closes whatever is still
+// open, and parses that — so a truncated batch of ten cards still yields nine
+// instead of nothing.
+export function repairJson(text) {
+  if (typeof text !== 'string') return null;
+  const start = text.search(/[{[]/);
+  if (start === -1) return null;
+  const s = text.slice(start);
+
+  const direct = tryParse(s);
+  if (direct !== undefined) return direct;
+
+  // One pass: for every index, what closers would still be needed after it.
+  const stack = [];
+  const closers = new Array(s.length);
+  let inStr = false, esc = false;
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (inStr) {
+      if (esc) esc = false;
+      else if (c === '\\') esc = true;
+      else if (c === '"') inStr = false;
+    } else if (c === '"') inStr = true;
+    else if (c === '{') stack.push('}');
+    else if (c === '[') stack.push(']');
+    else if (c === '}' || c === ']') stack.pop();
+    closers[i] = inStr ? null : stack.slice().reverse().join('');
+  }
+
+  // Cheapest case first: the text stopped on a complete value, so just close up.
+  const tail = closers[s.length - 1];
+  if (tail !== null && tail !== undefined) {
+    const closed = tryParse(s.replace(/,\s*$/, '') + tail);
+    if (closed !== undefined) return closed;
+  }
+
+  // Otherwise walk back to the last point a value ended — a closing brace or
+  // bracket (keep it) or a comma (drop the half-written pair after it).
+  let attempts = 0;
+  for (let i = s.length - 1; i >= 0 && attempts < 400; i--) {
+    const c = s[i];
+    if (c !== '}' && c !== ']' && c !== ',') continue;
+    if (closers[i] === null) continue;          // that character was inside a string
+    attempts++;
+    const head = c === ',' ? s.slice(0, i) : s.slice(0, i + 1);
+    const parsed = tryParse(head.replace(/,\s*$/, '') + closers[i]);
+    if (parsed !== undefined) return parsed;
+  }
+  return null;
+}
+
 function matchingIndex(s, start) {
   const open = s[start];
   const close = open === '{' ? '}' : ']';
@@ -440,7 +492,7 @@ export function payloadSize(obj) {
 if (typeof window !== 'undefined') {
   window.KCore = {
     newId, slug, normalizeTag, KINDS, TYPE_META, COLORS, typeMeta, kindMeta,
-    makeNotebook, makeEntry, sanitizeEntry, extractJson, parseEntryDrafts,
+    makeNotebook, makeEntry, sanitizeEntry, extractJson, repairJson, parseEntryDrafts,
     entryText, searchText, scoreEntry, searchEntries, findDuplicates, similarity, groupBy,
     sortEntries, reorder, RATINGS, srsInit, srsReview, addDays, isDue, dueEntries,
     entryToPlainText, buildContextDigest, notebookToMarkdown, payloadSize, dateKey,
